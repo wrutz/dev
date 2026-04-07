@@ -257,9 +257,13 @@ function fireClick(element: HTMLElement) {
 
     element.dispatchEvent(new MouseEvent("mouseup", { ...mouseInit, buttons: 0 }));
     element.dispatchEvent(new MouseEvent("click", { ...mouseInit, buttons: 0 }));
+    HTMLElement.prototype.click.call(element);
 }
 
 function findComboTrigger(root: ParentNode): HTMLElement | null {
+    const exact = root.querySelector('[role="button"][aria-haspopup="listbox"]') as HTMLElement | null;
+    if (isVisible(exact)) return exact;
+
     const explicit = Array.from(root.querySelectorAll('[role="combobox"], [aria-haspopup="listbox"]')) as HTMLElement[];
     const visibleExplicit = explicit.filter(isVisible);
     if (visibleExplicit.length) return visibleExplicit.at(-1) ?? null;
@@ -288,7 +292,8 @@ function getComboInput(combo: HTMLElement): HTMLElement {
 }
 
 function getClickableComboTarget(combo: HTMLElement): HTMLElement {
-    return (combo.querySelector('[class*="wrapper"]') as HTMLElement | null)
+    return (combo.querySelector(':scope > [class*="wrapper"]') as HTMLElement | null)
+        ?? (combo.querySelector('[class*="wrapper"]') as HTMLElement | null)
         ?? (combo.querySelector('[class*="select"]') as HTMLElement | null)
         ?? (combo.querySelector('input') as HTMLElement | null)
         ?? (combo.querySelector('[role="button"]') as HTMLElement | null)
@@ -331,7 +336,7 @@ function setNativeInputValue(element: HTMLElement, value: string) {
     return true;
 }
 
-function isDropdownOpen(combo: HTMLElement): boolean {
+function isDropdownOpen(combo: HTMLElement, names: string[] = []): boolean {
     if (combo.getAttribute("aria-expanded") === "true") return true;
     if (combo.getAttribute("data-state") === "open") return true;
 
@@ -340,6 +345,7 @@ function isDropdownOpen(combo: HTMLElement): boolean {
     if (clickable.getAttribute("data-state") === "open") return true;
 
     if (getComboListbox(combo)) return true;
+    if (names.length && findOptionByNames(names, combo)) return true;
     return false;
 }
 
@@ -356,7 +362,8 @@ function clickElementCenter(element: HTMLElement) {
 function getDropdownCandidates(combo: HTMLElement): HTMLElement[] {
     const clickable = getClickableComboTarget(combo);
     const input = getComboInput(combo);
-    const wrapper = combo.querySelector('[class*="wrapper"]') as HTMLElement | null;
+    const wrapper = combo.querySelector(':scope > [class*="wrapper"]') as HTMLElement | null;
+    const icon = combo.querySelector('svg') as HTMLElement | null;
     const unique: HTMLElement[] = [];
 
     const push = (candidate: Element | null | undefined) => {
@@ -365,10 +372,11 @@ function getDropdownCandidates(combo: HTMLElement): HTMLElement[] {
         }
     };
 
+    push(combo);
     push(wrapper);
     push(clickable);
     push(input);
-    push(combo);
+    push(icon);
     push(combo.parentElement);
     push(clickable.parentElement);
 
@@ -378,7 +386,7 @@ function getDropdownCandidates(combo: HTMLElement): HTMLElement[] {
     return unique;
 }
 
-async function openDropdown(combo: HTMLElement) {
+async function openDropdown(combo: HTMLElement, names: string[]) {
     const candidates = getDropdownCandidates(combo);
 
     for (const candidate of candidates) {
@@ -387,24 +395,24 @@ async function openDropdown(combo: HTMLElement) {
         await delay(40);
 
         fireClick(candidate);
-        await delay(140);
-        if (isDropdownOpen(combo)) return;
+        await delay(160);
+        if (isDropdownOpen(combo, names)) return;
 
         clickElementCenter(candidate);
-        await delay(140);
-        if (isDropdownOpen(combo)) return;
-
-        pressKey(candidate, " ");
-        await delay(120);
-        if (isDropdownOpen(combo)) return;
-
-        pressKey(candidate, "Enter");
-        await delay(120);
-        if (isDropdownOpen(combo)) return;
-
-        pressKey(candidate, "ArrowDown");
         await delay(160);
-        if (isDropdownOpen(combo)) return;
+        if (isDropdownOpen(combo, names)) return;
+
+        pressKey(combo, "ArrowDown");
+        await delay(160);
+        if (isDropdownOpen(combo, names)) return;
+
+        pressKey(combo, "Enter");
+        await delay(160);
+        if (isDropdownOpen(combo, names)) return;
+
+        pressKey(combo, " ");
+        await delay(160);
+        if (isDropdownOpen(combo, names)) return;
     }
 
     throw new Error("Could not open dropdown");
@@ -465,23 +473,84 @@ function findOptionByNames(names: string[], combo?: HTMLElement | null): HTMLEle
     return null;
 }
 
+function getVisibleComposer(): HTMLElement | null {
+    const selectors = [
+        '[role="textbox"][contenteditable="true"]',
+        'div[contenteditable="true"]',
+        'textarea'
+    ];
+
+    const candidates = Array.from(document.querySelectorAll(selectors.join(","))) as HTMLElement[];
+    return candidates.filter(isVisible).at(-1) ?? null;
+}
+
+function setComposerValue(element: HTMLElement, value: string): boolean {
+    if (element instanceof HTMLTextAreaElement || element instanceof HTMLInputElement) {
+        const prototype = Object.getPrototypeOf(element);
+        const descriptor = Object.getOwnPropertyDescriptor(prototype, "value");
+        descriptor?.set?.call(element, value);
+        element.dispatchEvent(new Event("input", { bubbles: true }));
+        element.dispatchEvent(new Event("change", { bubbles: true }));
+        return true;
+    }
+
+    if (element.isContentEditable) {
+        element.focus();
+        const selection = window.getSelection();
+        const range = document.createRange();
+        range.selectNodeContents(element);
+        range.collapse(false);
+        selection?.removeAllRanges();
+        selection?.addRange(range);
+
+        const inserted = document.execCommand("insertText", false, value);
+        if (!inserted) {
+            element.textContent = value;
+            element.dispatchEvent(new InputEvent("input", {
+                bubbles: true,
+                cancelable: true,
+                composed: true,
+                inputType: "insertText",
+                data: value
+            }));
+        }
+
+        return true;
+    }
+
+    return false;
+}
+
 function sendCommand(content: string): string {
     const channelId = getCommandTargetChannelId();
-    if (!channelId) throw new Error("Could not resolve a channel for the trigger command");
 
-    const channel = ChannelStore.getChannel(channelId);
-    if (!channel) throw new Error(`Could not resolve command target channel ${channelId}`);
+    try {
+        if (channelId) {
+            MessageActions.sendMessage(channelId, {
+                content,
+                tts: false,
+                invalidEmojis: [],
+                validNonShortcutEmojis: []
+            });
+            showToast(`Sent ${content} with MessageActions`);
+            return channelId;
+        }
+    } catch (error) {
+        console.warn("[AutoTransferWatchedUsers] MessageActions.sendMessage failed, falling back to the open composer", error);
+    }
 
-    MessageActions.sendMessage(channelId, {
-        content,
-        tts: false,
-        invalidEmojis: [],
-        validNonShortcutEmojis: []
-    });
+    const composer = getVisibleComposer();
+    if (!composer) throw new Error("Could not find an open chat composer for the trigger command");
 
-    const channelLabel = channel?.name ?? channelId;
-    showToast(`Sent ${content} to ${channelLabel}`);
-    return channelId;
+    fireClick(composer);
+    composer.focus();
+    if (!setComposerValue(composer, content)) {
+        throw new Error("Could not write the trigger command into the chat composer");
+    }
+
+    pressKey(composer, "Enter");
+    showToast(`Sent ${content} with composer fallback`);
+    return "composer";
 }
 
 async function clickTransferAndSelectUser(userId: string) {
@@ -512,7 +581,7 @@ async function clickTransferAndSelectUser(userId: string) {
         settings.store.uiTimeoutMs
     );
 
-    await openDropdown(combo);
+    await openDropdown(combo, names);
 
     await waitForElement(
         () => findOptionByNames(names, combo),
