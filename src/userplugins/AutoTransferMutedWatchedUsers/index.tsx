@@ -10,7 +10,8 @@ import { findByPropsLazy, findStoreLazy } from "@webpack";
 import { ChannelStore, Toasts, UserStore } from "@webpack/common";
 
 const VoiceStateStore = findStoreLazy("VoiceStateStore");
-const MessageActions = findByPropsLazy("sendMessage", "editMessage");
+const MessageCreator = findByPropsLazy("sendMessage", "getSendMessageOptionsForReply");
+const PendingReplyStore = findByPropsLazy("getPendingReply");
 
 type VoiceState = {
     userId: string;
@@ -204,9 +205,26 @@ function sendCommand(content: string) {
         throw new Error("Could not resolve a target chat channel");
     }
 
+    const message = {
+        content,
+        tts: false,
+        invalidEmojis: [],
+        validNonShortcutEmojis: []
+    };
+
+    const reply = PendingReplyStore.getPendingReply(targetChannelId);
+
     showToast(`Sending command to channel ${targetChannelId}`);
-    MessageActions.sendMessage(targetChannelId, {
-        content
+
+    return MessageCreator.sendMessage(
+        targetChannelId,
+        message,
+        void 0,
+        MessageCreator.getSendMessageOptionsForReply(reply)
+    ).then(() => {
+        if (reply) {
+            console.log("[AutoTransferWatchedUsers] cleared pending reply after send");
+        }
     });
 }
 
@@ -221,7 +239,7 @@ async function clickTransferAndSelectUser(userId: string) {
     if (!names.length) throw new Error("Could not resolve target user names");
 
     showToast(`Sending ${settings.store.triggerCommand} for ${names[0]}`);
-    sendCommand(settings.store.triggerCommand);
+    await sendCommand(settings.store.triggerCommand);
 
     const button = await waitForElement(
         () => getNewestButtonByLabel(settings.store.actionLabel),
