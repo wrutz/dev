@@ -4,7 +4,6 @@
  */
 
 import { definePluginSettings } from "@api/Settings";
-import { Devs } from "@utils/constants";
 import definePlugin, { OptionType } from "@utils/types";
 import { findByPropsLazy, findStoreLazy } from "@webpack";
 import { ChannelStore, Toasts, UserStore } from "@webpack/common";
@@ -15,11 +14,6 @@ const MessageActions = findByPropsLazy("sendMessage", "editMessage");
 type VoiceState = {
     userId: string;
     channelId?: string | null;
-    mute?: boolean;
-    deaf?: boolean;
-    selfMute?: boolean;
-    selfDeaf?: boolean;
-    isVoiceMuted?: () => boolean;
 };
 
 const settings = definePluginSettings({
@@ -47,9 +41,6 @@ const settings = definePluginSettings({
         type: OptionType.STRING,
         description: "Part of the followup message text that contains the dropdown",
         default: "Select a member to"
-    },            { label: "Server muted only", value: "server" },
-            { label: "Self muted only", value: "self" }
-        ]
     },
     pollMs: {
         type: OptionType.SLIDER,
@@ -92,14 +83,15 @@ function watchedSet(): Set<string> {
 
 function showToast(message: string) {
     if (!settings.store.debugToasts) return;
+
     try {
         Toasts.show({
             message,
-            id: Toasts.genId?.() ?? `auto-transfer-${Date.now()}`,
+            id: `auto-transfer-${Date.now()}`,
             type: Toasts.Type?.MESSAGE ?? 0
         });
     } catch {
-        console.log("[AutoTransferMutedWatchedUsers]", message);
+        console.log("[AutoTransferWatchedUsers]", message);
     }
 }
 
@@ -174,11 +166,9 @@ function findLatestPromptContainer(promptText: string): HTMLElement | null {
 
 function findComboTrigger(root: ParentNode): HTMLElement | null {
     return (
-        root.querySelector('[role="combobox"]') as HTMLElement |
-        null
+        root.querySelector('[role="combobox"]') as HTMLElement | null
     ) ?? (
-        root.querySelector('[aria-haspopup="listbox"]') as HTMLElement |
-        null
+        root.querySelector('[aria-haspopup="listbox"]') as HTMLElement | null
     );
 }
 
@@ -259,7 +249,7 @@ async function handleNewJoin(state: VoiceState) {
     try {
         await clickTransferAndSelectUser(state.userId);
     } catch (error) {
-        console.error("[AutoTransferMutedWatchedUsers] Failed to automate transfer", error);
+        console.error("[AutoTransferWatchedUsers] Failed to automate transfer", error);
         showToast("Auto transfer failed. Open devtools for details.");
     } finally {
         await delay(1500);
@@ -309,9 +299,12 @@ function stopLoop() {
 }
 
 export default definePlugin({
-    name: "AutoTransferMutedWatchedUsers",
+    name: "AutoTransferWatchedUsers",
     description: "When a watched user joins your current voice channel, send !vc, click Transfer, and select that user.",
-    authors: [{ name: "Your Name", id: 0n }],
+    authors: [{
+        name: "Your Name",
+        id: 0n
+    }],
     settings,
     start() {
         startLoop();
