@@ -239,8 +239,13 @@ function fireClick(element: HTMLElement) {
 }
 
 function findComboTrigger(root: ParentNode): HTMLElement | null {
-    const candidates = Array.from(root.querySelectorAll('[role="combobox"], [aria-haspopup="listbox"]')) as HTMLElement[];
-    return candidates.filter(isVisible).at(-1) ?? null;
+    const explicit = Array.from(root.querySelectorAll('[role="combobox"], [aria-haspopup="listbox"]')) as HTMLElement[];
+    const visibleExplicit = explicit.filter(isVisible);
+    if (visibleExplicit.length) return visibleExplicit.at(-1) ?? null;
+
+    const fallbackButtons = Array.from(root.querySelectorAll('button, [role="button"]')) as HTMLElement[];
+    const visibleButtons = fallbackButtons.filter(isVisible);
+    return visibleButtons.at(-1) ?? null;
 }
 
 function getComboListbox(combo: HTMLElement): HTMLElement | null {
@@ -286,35 +291,72 @@ function setNativeInputValue(element: HTMLElement, value: string) {
     return true;
 }
 
+function isDropdownOpen(combo: HTMLElement): boolean {
+    if (combo.getAttribute("aria-expanded") === "true") return true;
+    if (getComboListbox(combo)) return true;
+    return false;
+}
+
+function clickElementCenter(element: HTMLElement) {
+    const rect = element.getBoundingClientRect();
+    const x = rect.left + rect.width / 2;
+    const y = rect.top + rect.height / 2;
+    const target = document.elementFromPoint(x, y);
+    if (target instanceof HTMLElement) {
+        fireClick(target);
+    }
+}
+
+function getDropdownCandidates(combo: HTMLElement): HTMLElement[] {
+    const direct = [
+        getComboInput(combo),
+        getClickableComboTarget(combo),
+        combo,
+        combo.parentElement,
+        combo.previousElementSibling,
+        combo.nextElementSibling
+    ].filter((x): x is HTMLElement => x instanceof HTMLElement);
+
+    const nested = Array.from(combo.querySelectorAll('input, button, [role="button"], [tabindex], [class*="control"], [class*="container"], [class*="value"], [class*="Value"], [class*="indicator"], svg')) as HTMLElement[];
+    const unique: HTMLElement[] = [];
+
+    for (const candidate of [...direct, ...nested]) {
+        if (isVisible(candidate) && !unique.includes(candidate)) {
+            unique.push(candidate);
+        }
+    }
+
+    return unique;
+}
+
 async function openDropdown(combo: HTMLElement) {
-    const target = getClickableComboTarget(combo);
-    const input = getComboInput(combo);
+    const candidates = getDropdownCandidates(combo);
 
-    target.scrollIntoView({ block: "nearest" });
-    target.focus();
-    input.focus();
-    await delay(60);
+    for (const candidate of candidates) {
+        candidate.scrollIntoView({ block: "nearest" });
+        candidate.focus();
+        await delay(40);
 
-    fireClick(target);
-    await delay(120);
+        fireClick(candidate);
+        await delay(140);
+        if (isDropdownOpen(combo)) return;
 
-    let listbox = getComboListbox(combo);
-    if (listbox) return;
+        clickElementCenter(candidate);
+        await delay(140);
+        if (isDropdownOpen(combo)) return;
 
-    pressKey(input, " ");
-    await delay(120);
-    listbox = getComboListbox(combo);
-    if (listbox) return;
+        pressKey(candidate, " ");
+        await delay(120);
+        if (isDropdownOpen(combo)) return;
 
-    pressKey(input, "Enter");
-    await delay(120);
-    listbox = getComboListbox(combo);
-    if (listbox) return;
+        pressKey(candidate, "Enter");
+        await delay(120);
+        if (isDropdownOpen(combo)) return;
 
-    pressKey(input, "ArrowDown");
-    await delay(160);
-    listbox = getComboListbox(combo);
-    if (listbox) return;
+        pressKey(candidate, "ArrowDown");
+        await delay(160);
+        if (isDropdownOpen(combo)) return;
+    }
 
     throw new Error("Could not open dropdown");
 }
@@ -351,19 +393,23 @@ async function selectDropdownOption(combo: HTMLElement, names: string[]) {
 
 function findOptionByNames(names: string[], combo?: HTMLElement | null): HTMLElement | null {
     const lowered = names.map(normalize).filter(Boolean);
-    const searchRoot = combo ? getComboListbox(combo) ?? document : document;
-    const options = Array.from(searchRoot.querySelectorAll('[role="option"], [aria-selected]')) as HTMLElement[];
-    const visibleOptions = options.filter(isVisible);
+    const listbox = combo ? getComboListbox(combo) : null;
+    const roots: ParentNode[] = listbox ? [listbox, document] : [document];
 
-    for (const name of lowered) {
-        const exact = visibleOptions.find(option => visibleText(option) === name);
-        if (exact) return exact;
-    }
+    for (const root of roots) {
+        const options = Array.from(root.querySelectorAll('[role="option"], [aria-selected], [class*="option"], [class*="Option"], [class*="item"], [data-list-item-id]')) as HTMLElement[];
+        const visibleOptions = options.filter(isVisible);
 
-    for (const option of visibleOptions) {
-        const text = visibleText(option);
-        if (lowered.some(name => text.includes(name))) {
-            return option;
+        for (const name of lowered) {
+            const exact = visibleOptions.find(option => visibleText(option) === name);
+            if (exact) return exact;
+        }
+
+        for (const option of visibleOptions) {
+            const text = visibleText(option);
+            if (lowered.some(name => text.includes(name))) {
+                return option;
+            }
         }
     }
 
