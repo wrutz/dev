@@ -213,10 +213,28 @@ function isVisible(element: Element | null | undefined): element is HTMLElement 
 }
 
 function fireClick(element: HTMLElement) {
-    element.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true }));
-    element.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
-    element.dispatchEvent(new MouseEvent("pointerup", { bubbles: true }));
-    element.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
+    const pointerInit = { bubbles: true, cancelable: true, composed: true, pointerId: 1, isPrimary: true, button: 0, buttons: 1 };
+    const mouseInit = { bubbles: true, cancelable: true, composed: true, button: 0, buttons: 1 };
+
+    element.dispatchEvent(new MouseEvent("mouseover", mouseInit));
+    element.dispatchEvent(new MouseEvent("mouseenter", mouseInit));
+    element.dispatchEvent(new MouseEvent("mousemove", mouseInit));
+
+    if (typeof PointerEvent !== "undefined") {
+        element.dispatchEvent(new PointerEvent("pointerover", pointerInit));
+        element.dispatchEvent(new PointerEvent("pointerenter", pointerInit));
+        element.dispatchEvent(new PointerEvent("pointermove", pointerInit));
+        element.dispatchEvent(new PointerEvent("pointerdown", pointerInit));
+    }
+
+    element.dispatchEvent(new MouseEvent("mousedown", mouseInit));
+
+    if (typeof PointerEvent !== "undefined") {
+        element.dispatchEvent(new PointerEvent("pointerup", { ...pointerInit, buttons: 0 }));
+    }
+
+    element.dispatchEvent(new MouseEvent("mouseup", { ...mouseInit, buttons: 0 }));
+    element.dispatchEvent(new MouseEvent("click", { ...mouseInit, buttons: 0 }));
     element.click();
 }
 
@@ -234,6 +252,58 @@ function getComboListbox(combo: HTMLElement): HTMLElement | null {
 
     const expanded = Array.from(document.querySelectorAll('[role="listbox"]')) as HTMLElement[];
     return expanded.filter(isVisible).at(-1) ?? null;
+}
+
+function getComboInput(combo: HTMLElement): HTMLElement {
+    return (combo.querySelector("input") as HTMLElement | null)
+        ?? (combo.querySelector('[contenteditable="true"]') as HTMLElement | null)
+        ?? combo;
+}
+
+function pressKey(element: HTMLElement, key: string) {
+    const init = { key, bubbles: true, cancelable: true, composed: true };
+    element.dispatchEvent(new KeyboardEvent("keydown", init));
+    element.dispatchEvent(new KeyboardEvent("keypress", init));
+    element.dispatchEvent(new KeyboardEvent("keyup", init));
+}
+
+function setNativeInputValue(element: HTMLElement, value: string) {
+    if (!(element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement)) return false;
+
+    const prototype = Object.getPrototypeOf(element);
+    const descriptor = Object.getOwnPropertyDescriptor(prototype, "value");
+    descriptor?.set?.call(element, value);
+    element.dispatchEvent(new Event("input", { bubbles: true }));
+    element.dispatchEvent(new Event("change", { bubbles: true }));
+    return true;
+}
+
+async function selectDropdownOption(combo: HTMLElement, names: string[]) {
+    const input = getComboInput(combo);
+    input.focus();
+
+    if (input instanceof HTMLInputElement || input instanceof HTMLTextAreaElement) {
+        input.select();
+        setNativeInputValue(input, names[0] ?? "");
+        await delay(200);
+    }
+
+    let option = findOptionByNames(names, combo);
+
+    if (!option) {
+        pressKey(input, "ArrowDown");
+        await delay(150);
+        option = findOptionByNames(names, combo);
+    }
+
+    if (!option) {
+        throw new Error("Could not find matching dropdown option");
+    }
+
+    option.scrollIntoView({ block: "nearest" });
+    fireClick(option);
+    await delay(120);
+    pressKey(input, "Enter");
 }
 
 function findOptionByNames(names: string[], combo?: HTMLElement | null): HTMLElement | null {
@@ -308,13 +378,12 @@ async function clickTransferAndSelectUser(userId: string) {
     combo.focus();
     await delay(350);
 
-    const option = await waitForElement(
+    await waitForElement(
         () => findOptionByNames(names, combo),
         settings.store.uiTimeoutMs
     );
 
-    option.scrollIntoView({ block: "nearest" });
-    fireClick(option);
+    await selectDropdownOption(combo, names);
     showToast(`Selected ${names[0]} in transfer dropdown`);
 }
 
