@@ -3,39 +3,105 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-import { Button } from "@components/Button";
-import ErrorBoundary from "@components/ErrorBoundary";
-import definePlugin from "@utils/types";
-import { findComponentByCodeLazy, findStoreLazy } from "@webpack";
-import {
-    ChannelStore,
-    PermissionStore,
-    PermissionsBits,
-    RestAPI,
-    Toasts,
-    UserStore,
-    showToast
-} from "@webpack/common";
+import { definePluginSettings } from "@api/Settings";
+import { Logger } from "@utils/Logger";
+import definePlugin, { OptionType } from "@utils/types";
+import { findByPropsLazy, findStoreLazy } from "@webpack";
+import { Toasts, UserStore } from "@webpack/common";
 
-const PanelButton = findComponentByCodeLazy(".GREEN,positionKeyStemOverride:");
+const logger = new Logger("LocalMuteLastJoiner");
 
 const SelectedChannelStore = findStoreLazy("SelectedChannelStore") as {
     getVoiceChannelId(): string | null;
 } | null;
 
 const VoiceStateStore = findStoreLazy("VoiceStateStore") as {
-    getVoiceStatesForChannel(channelId: string): Record<string, any>;
+    getVoiceStatesForChannel(channelId: string): Record<string, unknown>;
 } | null;
 
-/**
- * Per-channel join history.
- * The last item in the array is the newest tracked joiner still in that VC.
- *
- * Note:
- * This starts tracking from the moment the plugin is loaded.
- * It cannot know who joined "last" before the plugin started.
- */
+// Current Discord builds appear to expose local voice controls through methods
+// named like these. If Discord changes internals, these lookups are the first
+// place to adjust.
+const MediaEngineStore = findByPropsLazy("isLocalMute", "getLocalVolume") as {
+    isLocalMute(userId: string, context?: unknown): boolean;
+    getLocalVolume?(userId: string, context?: unknown): number;
+} | null;
+
+const MediaEngineActions = findByPropsLazy("toggleLocalMute", "setLocalVolume") as {
+    toggleLocalMute(userId: string, context?: unknown): void;
+    setLocalVolume?(userId: string, volume: number, context?: unknown): void;
+} | null;
+
+const settings = definePluginSettings({
+    triggerKey: {
+        type: OptionType.STRING,
+        description: "Main key for the shortcut. Example: M, F8, Pause, Enter",
+        default: "M"
+    },
+    requireCtrl: {
+        type: OptionType.BOOLEAN,
+        description: "Require Ctrl",
+        default: true
+    },
+    requireAlt: {
+        type: OptionType.BOOLEAN,
+        description: "Require Alt",
+        default: true
+    },
+    requireShift: {
+        type: OptionType.BOOLEAN,
+        description: "Require Shift",
+        default: false
+    },
+    useVolumeFallback: {
+        type: OptionType.BOOLEAN,
+        description: "If local mute lookup fails, set the target's local volume to 0 as a fallback",
+        default: true
+    }
+});
+
+type FluxVoiceState = {
+    userId: string;
+    channelId: string | null;
+    oldChannelId?: string | null;
+};
+
 const joinHistoryByChannel = new Map<string, string[]>();
+
+function toast(message: string, type: number) {
+    Toasts.show({
+        id: Toasts.genId(),
+        message,
+        type
+    });
+}
+
+function normalizeKey(key: string) {
+    const k = key.trim().toLowerCase();
+
+    switch (k) {
+        case " ":
+            return "space";
+        case "esc":
+            return "escape";
+        default:
+            return k;
+    }
+}
+
+function eventKey(e: KeyboardEvent) {
+    return normalizeKey(e.key);
+}
+
+function isTypingTarget(target: EventTarget | null) {
+    if (!(target instanceof HTMLElement)) return false;
+
+    const tag = target.tagName;
+    return target.isContentEditable
+        || tag === "INPUT"
+        || tag === "TEXTAREA"
+        || tag === "SELECT";
+}
 
 function removeUserFromChannelHistory(channelId: string, userId: string) {
     const history = joinHistoryByChannel.get(channelId);
@@ -57,8 +123,8 @@ function getTrackedLastJoiner(channelId: string): string | null {
     if (!VoiceStateStore) return null;
 
     const myId = UserStore.getCurrentUser()?.id;
-    const states = VoiceStateStore.getVoiceStatesForChannel(channelId) ?? {};
-    const currentIds = new Set(Object.keys(states));
+    const currentStates = VoiceStateStore.getVoiceStatesForChannel(channelId) ?? {};
+    const currentIds = new Set(Object.keys(currentStates));
 
     const history = joinHistoryByChannel.get(channelId);
     if (!history?.length) return null;
@@ -73,27 +139,16 @@ function getTrackedLastJoiner(channelId: string): string | null {
     return null;
 }
 
-async function muteTrackedLastJoiner() {
+function muteTrackedLastJoinerLocally() {
     const channelId = SelectedChannelStore?.getVoiceChannelId();
     if (!channelId) {
-        showToast("You are not in a voice channel.", Toasts.Type.FAILURE);
-        return;
-    }
-
-    const channel = ChannelStore.getChannel(channelId);
-    if (!channel?.guild_id) {
-        showToast("This only works in guild voice channels.", Toasts.Type.FAILURE);
-        return;
-    }
-
-    if (!PermissionStore.can(PermissionsBits.MUTE_MEMBERS, channel)) {
-        showToast("You do not have Mute Members permission here.", Toasts.Type.FAILURE);
+        toast("You are not in a voice channel.", Toasts.Type.FAILURE);
         return;
     }
 
     const targetUserId = getTrackedLastJoiner(channelId);
     if (!targetUserId) {
-        showToast("No tracked joiner yet. Someone needs to join after the plugin loads.", Toasts.Type.MESSAGE);
+        toast("No tracked last joiner yet. Someone needs to join after the plugin loads.", Toasts.Type.FAILURE);
         return;
     }
 
@@ -101,70 +156,69 @@ async function muteTrackedLastJoiner() {
     const displayName = user?.globalName || user?.username || "that user";
 
     try {
-        await RestAPI.patch({
-            url: `/guilds/${channel.guild_id}/members/${targetUserId}`,
-            body: { mute: true }
-        });
+        if (MediaEngineStore?.isLocalMute && MediaEngineActions?.toggleLocalMute) {
+            if (MediaEngineStore.isLocalMute(targetUserId)) {
+                toast(`${displayName} is already locally muted.`, Toasts.Type.SUCCESS);
+                return;
+            }
 
-        showToast(`Muted ${displayName}.`, Toasts.Type.SUCCESS);
+            MediaEngineActions.toggleLocalMute(targetUserId);
+            toast(`Locally muted ${displayName}.`, Toasts.Type.SUCCESS);
+            return;
+        }
+
+        if (settings.store.useVolumeFallback && MediaEngineActions?.setLocalVolume) {
+            // 0 is silence for the local volume path.
+            MediaEngineActions.setLocalVolume(targetUserId, 0);
+            toast(`Set ${displayName}'s local volume to 0.`, Toasts.Type.SUCCESS);
+            return;
+        }
+
+        toast("Could not find Discord's local mute functions on this build.", Toasts.Type.FAILURE);
     } catch (err) {
-        console.error("[MuteLastJoiner] Failed to mute user:", err);
-        showToast(`Failed to mute ${displayName}.`, Toasts.Type.FAILURE);
+        logger.error("Failed to locally mute last joiner:", err);
+        toast(`Failed to locally mute ${displayName}.`, Toasts.Type.FAILURE);
     }
 }
 
-function getIcon() {
-    return (
-        <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
-            <path
-                fill="currentColor"
-                d="M12 14a3 3 0 0 0 3-3V7a3 3 0 1 0-6 0v4a3 3 0 0 0 3 3Zm5-3a1 1 0 1 0-2 0 3 3 0 1 1-6 0 1 1 0 1 0-2 0 5 5 0 0 0 4 4.9V21H9a1 1 0 1 0 0 2h6a1 1 0 1 0 0-2h-2v-1.1A5 5 0 0 0 17 11Z"
-            />
-            <path
-                fill="var(--status-danger)"
-                d="M3.7 2.3a1 1 0 0 0-1.4 1.4l18 18a1 1 0 0 0 1.4-1.4l-18-18Z"
-            />
-        </svg>
-    );
+function matchesHotkey(e: KeyboardEvent) {
+    const triggerKey = normalizeKey(settings.store.triggerKey || "");
+    if (!triggerKey) return false;
+
+    return eventKey(e) === triggerKey
+        && e.ctrlKey === settings.store.requireCtrl
+        && e.altKey === settings.store.requireAlt
+        && e.shiftKey === settings.store.requireShift
+        && !e.metaKey;
 }
 
-function MuteLastJoinerButton() {
-    const onClick = () => {
-        void muteTrackedLastJoiner();
-    };
+function onKeyDown(e: KeyboardEvent) {
+    if (e.repeat) return;
+    if (isTypingTarget(e.target)) return;
+    if (!matchesHotkey(e)) return;
 
-    if (!PanelButton) {
-        return <Button onClick={onClick}>Mute last joiner</Button>;
-    }
+    e.preventDefault();
+    e.stopPropagation();
 
-    return (
-        <PanelButton
-            tooltipText="Mute last joined user"
-            icon={getIcon()}
-            onClick={onClick}
-        />
-    );
-}
-
-interface FluxVoiceState {
-    userId: string;
-    channelId: string | null;
-    oldChannelId?: string | null;
+    muteTrackedLastJoinerLocally();
 }
 
 export default definePlugin({
-    name: "MuteLastJoiner",
-    description: "Adds a voice panel button that mutes the last user who joined your current VC.",
+    name: "LocalMuteLastJoiner",
+    description: "Locally mutes the last user who joined your current voice channel with a keybind.",
     authors: [{
-        name: "your_name",
+        name: "Your Name",
         id: 0n
     }],
+    settings,
 
     start() {
         joinHistoryByChannel.clear();
+        document.addEventListener("keydown", onKeyDown);
     },
 
     stop() {
+        document.removeEventListener("keydown", onKeyDown);
         joinHistoryByChannel.clear();
     },
 
@@ -184,17 +238,5 @@ export default definePlugin({
                 }
             }
         }
-    },
-
-    patches: [
-        {
-            find: "renderNoiseCancellation",
-            replacement: {
-                match: /children:\[(?=\i\?this\.renderNoiseCancellation\(\))/,
-                replace: "$&$self.muteLastJoinerButton(),"
-            }
-        }
-    ],
-
-    muteLastJoinerButton: ErrorBoundary.wrap(MuteLastJoinerButton, { noop: true })
+    }
 });
