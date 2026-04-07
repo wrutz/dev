@@ -175,11 +175,26 @@ function findComboTrigger(root: ParentNode): HTMLElement | null {
 }
 
 function clickElement(element: HTMLElement) {
-    element.dispatchEvent(new MouseEvent("mouseenter", { bubbles: true }));
-    element.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
-    element.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
-    element.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
-    element.click();
+    element.scrollIntoView({ block: "nearest" });
+
+    const mouseInit = { bubbles: true, cancelable: true, view: window };
+    const pointerInit = { bubbles: true, cancelable: true };
+
+    element.dispatchEvent(new MouseEvent("mouseenter", mouseInit));
+    element.dispatchEvent(new MouseEvent("mouseover", mouseInit));
+
+    if (typeof PointerEvent !== "undefined") {
+        element.dispatchEvent(new PointerEvent("pointerdown", pointerInit));
+    }
+
+    element.dispatchEvent(new MouseEvent("mousedown", mouseInit));
+
+    if (typeof PointerEvent !== "undefined") {
+        element.dispatchEvent(new PointerEvent("pointerup", pointerInit));
+    }
+
+    element.dispatchEvent(new MouseEvent("mouseup", mouseInit));
+    element.dispatchEvent(new MouseEvent("click", mouseInit));
 }
 
 function findSearchInput(root?: ParentNode): HTMLInputElement | null {
@@ -209,9 +224,20 @@ function findOptionByNames(names: string[]): HTMLElement | null {
 
     const options = Array.from(document.querySelectorAll(selectors)) as HTMLElement[];
 
-    for (const option of options) {
+    const visibleOptions = options.filter(option => {
         const text = visibleText(option);
-        if (lowered.some(name => text === name || text.includes(name))) {
+        const style = window.getComputedStyle(option);
+        return Boolean(text) && style.display !== "none" && style.visibility !== "hidden";
+    });
+
+    for (const name of lowered) {
+        const exact = visibleOptions.find(option => visibleText(option) === name);
+        if (exact) return exact;
+    }
+
+    for (const option of visibleOptions) {
+        const text = visibleText(option);
+        if (lowered.some(name => text.includes(name))) {
             return option;
         }
     }
@@ -220,7 +246,29 @@ function findOptionByNames(names: string[]): HTMLElement | null {
 }
 
 async function chooseUserFromDropdown(promptRoot: HTMLElement, names: string[]) {
-    await chooseUserFromDropdown(promptRoot, names);
+    const combo = await waitForElement(
+        () => findComboTrigger(promptRoot),
+        settings.store.uiTimeoutMs
+    );
+
+    clickElement(combo);
+    await delay(300);
+
+    const input = findSearchInput(document.body) ?? findSearchInput(promptRoot);
+    if (input && names[0]) {
+        input.focus();
+        setInputValue(input, names[0]);
+        await delay(350);
+    }
+
+    const option = await waitForElement(
+        () => findOptionByNames(names),
+        settings.store.uiTimeoutMs
+    );
+
+    clickElement(option);
+    await delay(150);
+
     showToast(`Selected ${names[0]} in transfer dropdown`);
 }
 
