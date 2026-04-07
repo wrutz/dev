@@ -200,9 +200,28 @@ function getNewestButtonByLabel(label: string): HTMLButtonElement | null {
 
 function findLatestPromptContainer(promptText: string): HTMLElement | null {
     const target = normalize(promptText);
-    const candidates = Array.from(document.querySelectorAll("[class], section, article, div")) as HTMLElement[];
-    const matches = candidates.filter(node => visibleText(node).includes(target));
+    const messageLikeNodes = Array.from(document.querySelectorAll('[id^="message-accessories-"], [id^="message-content-"], article, li, [class*="message"]')) as HTMLElement[];
+    const matches = messageLikeNodes.filter(node => isVisible(node) && visibleText(node).includes(target));
     return matches.at(-1) ?? null;
+}
+
+function findLatestDropdownTrigger(promptText: string): HTMLElement | null {
+    const promptRoots = Array.from(document.querySelectorAll('[id^="message-accessories-"], [id^="message-content-"], article, li, [class*="message"]')) as HTMLElement[];
+    const target = normalize(promptText);
+
+    for (let i = promptRoots.length - 1; i >= 0; i--) {
+        const root = promptRoots[i];
+        if (!isVisible(root) || !visibleText(root).includes(target)) continue;
+
+        const triggers = Array.from(root.querySelectorAll('[role="button"][aria-haspopup="listbox"], [role="combobox"], [aria-haspopup="listbox"]')) as HTMLElement[];
+        const visibleTriggers = triggers.filter(isVisible);
+        if (visibleTriggers.length) {
+            return visibleTriggers.at(-1) ?? null;
+        }
+    }
+
+    const fallback = Array.from(document.querySelectorAll('[role="button"][aria-haspopup="listbox"], [role="combobox"], [aria-haspopup="listbox"]')) as HTMLElement[];
+    return fallback.filter(isVisible).at(-1) ?? null;
 }
 
 function isVisible(element: Element | null | undefined): element is HTMLElement {
@@ -484,6 +503,55 @@ function getVisibleComposer(): HTMLElement | null {
     return candidates.filter(isVisible).at(-1) ?? null;
 }
 
+function clearComposer(element: HTMLElement) {
+    if (element instanceof HTMLTextAreaElement || element instanceof HTMLInputElement) {
+        const prototype = Object.getPrototypeOf(element);
+        const descriptor = Object.getOwnPropertyDescriptor(prototype, "value");
+        descriptor?.set?.call(element, "");
+        element.dispatchEvent(new Event("input", { bubbles: true }));
+        return;
+    }
+
+    if (element.isContentEditable) {
+        element.focus();
+        document.execCommand("selectAll", false);
+        document.execCommand("delete", false);
+        element.textContent = "";
+        element.dispatchEvent(new InputEvent("input", {
+            bubbles: true,
+            cancelable: true,
+            composed: true,
+            inputType: "deleteContentBackward",
+            data: null
+        }));
+    }
+}
+
+function submitComposer(element: HTMLElement) {
+    element.focus();
+    pressKey(element, "Enter");
+
+    const active = document.activeElement;
+    if (active instanceof HTMLElement && active !== element) {
+        pressKey(active, "Enter");
+    }
+
+    const form = element.closest("form");
+    if (form) {
+        form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    }
+
+    const sendButton = Array.from(document.querySelectorAll('button, [role="button"]')).find(node => {
+        if (!(node instanceof HTMLElement) || !isVisible(node)) return false;
+        const label = normalize(node.getAttribute("aria-label") ?? node.textContent ?? "");
+        return label.includes("send") || label === "enter";
+    });
+
+    if (sendButton instanceof HTMLElement) {
+        fireClick(sendButton);
+    }
+}
+
 function setComposerValue(element: HTMLElement, value: string): boolean {
     if (element instanceof HTMLTextAreaElement || element instanceof HTMLInputElement) {
         const prototype = Object.getPrototypeOf(element);
@@ -522,35 +590,36 @@ function setComposerValue(element: HTMLElement, value: string): boolean {
 }
 
 function sendCommand(content: string): string {
+    const composer = getVisibleComposer();
+    if (composer) {
+        fireClick(composer);
+        composer.focus();
+        clearComposer(composer);
+
+        if (!setComposerValue(composer, content)) {
+            throw new Error("Could not write the trigger command into the chat composer");
+        }
+
+        submitComposer(composer);
+        showToast(`Sent ${content} with visible composer`);
+        return "composer";
+    }
+
     const channelId = getCommandTargetChannelId();
+    if (!channelId) throw new Error("Could not resolve a channel for the trigger command");
 
     try {
-        if (channelId) {
-            MessageActions.sendMessage(channelId, {
-                content,
-                tts: false,
-                invalidEmojis: [],
-                validNonShortcutEmojis: []
-            });
-            showToast(`Sent ${content} with MessageActions`);
-            return channelId;
-        }
+        MessageActions.sendMessage(channelId, {
+            content,
+            tts: false,
+            invalidEmojis: [],
+            validNonShortcutEmojis: []
+        });
+        showToast(`Sent ${content} with MessageActions`);
+        return channelId;
     } catch (error) {
-        console.warn("[AutoTransferWatchedUsers] MessageActions.sendMessage failed, falling back to the open composer", error);
+        throw new Error(`Failed to send trigger command: ${String(error)}`);
     }
-
-    const composer = getVisibleComposer();
-    if (!composer) throw new Error("Could not find an open chat composer for the trigger command");
-
-    fireClick(composer);
-    composer.focus();
-    if (!setComposerValue(composer, content)) {
-        throw new Error("Could not write the trigger command into the chat composer");
-    }
-
-    pressKey(composer, "Enter");
-    showToast(`Sent ${content} with composer fallback`);
-    return "composer";
 }
 
 async function clickTransferAndSelectUser(userId: string) {
@@ -571,13 +640,8 @@ async function clickTransferAndSelectUser(userId: string) {
     button.click();
     showToast(`Clicked ${settings.store.actionLabel} for ${names[0]}`);
 
-    const promptRoot = await waitForElement(
-        () => findLatestPromptContainer(settings.store.selectPromptText),
-        settings.store.uiTimeoutMs
-    );
-
     const combo = await waitForElement(
-        () => findComboTrigger(promptRoot) ?? findComboTrigger(document),
+        () => findLatestDropdownTrigger(settings.store.selectPromptText),
         settings.store.uiTimeoutMs
     );
 
