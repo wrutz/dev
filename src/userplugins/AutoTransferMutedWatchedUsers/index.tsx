@@ -198,10 +198,23 @@ function clickElement(element: HTMLElement) {
 }
 
 function findSearchInput(root?: ParentNode): HTMLInputElement | null {
-    const scoped = root?.querySelector('input') as HTMLInputElement | null;
-    if (scoped) return scoped;
+    const selectors = [
+        'input[role="combobox"]',
+        'input[aria-autocomplete="list"]',
+        'input[autocomplete]',
+        'input'
+    ].join(", ");
 
-    return document.querySelector('input[role="combobox"], input') as HTMLInputElement | null;
+    const candidates = Array.from((root ?? document).querySelectorAll(selectors)) as HTMLInputElement[];
+
+    for (const input of candidates) {
+        const style = window.getComputedStyle(input);
+        if (style.display === "none" || style.visibility === "hidden") continue;
+        if ((input.offsetWidth ?? 0) <= 0 && (input.offsetHeight ?? 0) <= 0) continue;
+        return input;
+    }
+
+    return null;
 }
 
 function setInputValue(input: HTMLInputElement, value: string) {
@@ -209,6 +222,22 @@ function setInputValue(input: HTMLInputElement, value: string) {
     setter?.call(input, value);
     input.dispatchEvent(new Event("input", { bubbles: true }));
     input.dispatchEvent(new Event("change", { bubbles: true }));
+}
+
+function pressKey(element: HTMLElement, key: string) {
+    const keyCode = key === "Enter" ? 13 : key === "ArrowDown" ? 40 : 0;
+    const eventInit = {
+        key,
+        code: key,
+        keyCode,
+        which: keyCode,
+        bubbles: true,
+        cancelable: true
+    };
+
+    element.dispatchEvent(new KeyboardEvent("keydown", eventInit));
+    element.dispatchEvent(new KeyboardEvent("keypress", eventInit));
+    element.dispatchEvent(new KeyboardEvent("keyup", eventInit));
 }
 
 function findOptionByNames(names: string[]): HTMLElement | null {
@@ -252,24 +281,45 @@ async function chooseUserFromDropdown(promptRoot: HTMLElement, names: string[]) 
     );
 
     clickElement(combo);
-    await delay(300);
+    await delay(350);
 
-    const input = findSearchInput(document.body) ?? findSearchInput(promptRoot);
-    if (input && names[0]) {
-        input.focus();
-        setInputValue(input, names[0]);
-        await delay(350);
-    }
-
-    const option = await waitForElement(
-        () => findOptionByNames(names),
+    const input = await waitForElement(
+        () => findSearchInput(promptRoot) ?? findSearchInput(document.body),
         settings.store.uiTimeoutMs
     );
 
-    clickElement(option);
-    await delay(150);
+    const primaryName = names[0] ?? "";
+    input.focus();
+    clickElement(input);
+    await delay(100);
 
-    showToast(`Selected ${names[0]} in transfer dropdown`);
+    if (primaryName) {
+        setInputValue(input, primaryName);
+        await delay(500);
+    }
+
+    let option = findOptionByNames(names);
+
+    if (option) {
+        clickElement(option);
+        await delay(200);
+        showToast(`Selected ${primaryName} in transfer dropdown`);
+        return;
+    }
+
+    showToast(`No direct match for ${primaryName}, trying keyboard selection`);
+    pressKey(input, "ArrowDown");
+    await delay(150);
+    pressKey(input, "Enter");
+    await delay(300);
+
+    option = findOptionByNames(names);
+    if (option) {
+        showToast(`Selected ${primaryName} in transfer dropdown`);
+        return;
+    }
+
+    throw new Error(`Could not select dropdown option for ${primaryName}`);
 }
 
 async function handleNewJoin(state: VoiceState) {
