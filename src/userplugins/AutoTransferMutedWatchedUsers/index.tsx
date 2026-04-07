@@ -174,13 +174,44 @@ function findComboTrigger(root: ParentNode): HTMLElement | null {
     );
 }
 
+function clickElement(element: HTMLElement) {
+    element.dispatchEvent(new MouseEvent("mouseenter", { bubbles: true }));
+    element.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+    element.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+    element.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
+    element.click();
+}
+
+function findSearchInput(root?: ParentNode): HTMLInputElement | null {
+    const scoped = root?.querySelector('input') as HTMLInputElement | null;
+    if (scoped) return scoped;
+
+    return document.querySelector('input[role="combobox"], input') as HTMLInputElement | null;
+}
+
+function setInputValue(input: HTMLInputElement, value: string) {
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
+    setter?.call(input, value);
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+}
+
 function findOptionByNames(names: string[]): HTMLElement | null {
     const lowered = names.map(normalize).filter(Boolean);
-    const options = Array.from(document.querySelectorAll('[role="option"], [aria-selected]')) as HTMLElement[];
+    const selectors = [
+        '[role="option"]',
+        '[aria-selected]',
+        '[id*="option"]',
+        '[class*="option"]',
+        '[class*="selectable"]',
+        '[class*="item"]'
+    ].join(", ");
+
+    const options = Array.from(document.querySelectorAll(selectors)) as HTMLElement[];
 
     for (const option of options) {
         const text = visibleText(option);
-        if (lowered.some(name => text.includes(name))) {
+        if (lowered.some(name => text === name || text.includes(name))) {
             return option;
         }
     }
@@ -188,86 +219,8 @@ function findOptionByNames(names: string[]): HTMLElement | null {
     return null;
 }
 
-function getTargetChatChannelId(): string | null {
-    const voiceChannelId = getCurrentVoiceChannelId();
-    const currentChannelId = getCurrentChannel()?.id ?? null;
-
-    if (currentChannelId === voiceChannelId) {
-        return currentChannelId;
-    }
-
-    return voiceChannelId;
-}
-
-function sendCommand(content: string) {
-    const targetChannelId = getTargetChatChannelId();
-    if (!targetChannelId) {
-        throw new Error("Could not resolve a target chat channel");
-    }
-
-    const message = {
-        content,
-        tts: false,
-        invalidEmojis: [],
-        validNonShortcutEmojis: []
-    };
-
-    const reply = PendingReplyStore.getPendingReply(targetChannelId);
-
-    showToast(`Sending command to channel ${targetChannelId}`);
-
-    return MessageCreator.sendMessage(
-        targetChannelId,
-        message,
-        void 0,
-        MessageCreator.getSendMessageOptionsForReply(reply)
-    ).then(() => {
-        if (reply) {
-            console.log("[AutoTransferWatchedUsers] cleared pending reply after send");
-        }
-    });
-}
-
-async function clickTransferAndSelectUser(userId: string) {
-    const channelId = getCurrentVoiceChannelId();
-    if (!channelId) throw new Error("You are not in a voice channel");
-
-    const channel = ChannelStore.getChannel(channelId);
-    if (!channel) throw new Error("Could not resolve current voice channel");
-
-    const names = getUserNames(userId);
-    if (!names.length) throw new Error("Could not resolve target user names");
-
-    showToast(`Sending ${settings.store.triggerCommand} for ${names[0]}`);
-    await sendCommand(settings.store.triggerCommand);
-
-    const button = await waitForElement(
-        () => getNewestButtonByLabel(settings.store.actionLabel),
-        settings.store.uiTimeoutMs
-    );
-
-    button.click();
-    showToast(`Clicked ${settings.store.actionLabel} for ${names[0]}`);
-
-    const promptRoot = await waitForElement(
-        () => findLatestPromptContainer(settings.store.selectPromptText),
-        settings.store.uiTimeoutMs
-    );
-
-    const combo = await waitForElement(
-        () => findComboTrigger(promptRoot),
-        settings.store.uiTimeoutMs
-    );
-
-    combo.click();
-    await delay(250);
-
-    const option = await waitForElement(
-        () => findOptionByNames(names),
-        settings.store.uiTimeoutMs
-    );
-
-    option.click();
+async function chooseUserFromDropdown(promptRoot: HTMLElement, names: string[]) {
+    await chooseUserFromDropdown(promptRoot, names);
     showToast(`Selected ${names[0]} in transfer dropdown`);
 }
 
