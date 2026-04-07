@@ -1,25 +1,24 @@
 /*
  * Vencord / Equicord user plugin
- * Auto transfers watched users when they join your current voice channel while muted.
+ * Auto transfers watched users when they join your current voice channel.
  */
 
 import { definePluginSettings } from "@api/Settings";
-import { Devs } from "@utils/constants";
 import definePlugin, { OptionType } from "@utils/types";
 import { findByPropsLazy, findStoreLazy } from "@webpack";
 import { ChannelStore, Toasts, UserStore } from "@webpack/common";
 
 const VoiceStateStore = findStoreLazy("VoiceStateStore");
+const SelectedChannelStore = findStoreLazy("SelectedChannelStore");
 const MessageActions = findByPropsLazy("sendMessage", "editMessage");
 
 type VoiceState = {
     userId: string;
     channelId?: string | null;
-    mute?: boolean;
-    deaf?: boolean;
-    selfMute?: boolean;
-    selfDeaf?: boolean;
-    isVoiceMuted?: () => boolean;
+};
+
+type SelectedChannelStoreType = {
+    getChannelId?: () => string | null;
 };
 
 const settings = definePluginSettings({
@@ -38,6 +37,16 @@ const settings = definePluginSettings({
         description: "Command sent into the voice channel chat",
         default: "!vc"
     },
+    commandChannelId: {
+        type: OptionType.STRING,
+        description: "Optional channel ID to send the trigger command into. Leave blank to use the currently open chat.",
+        default: ""
+    },
+    preferSelectedChat: {
+        type: OptionType.BOOLEAN,
+        description: "Send the trigger command to the currently open chat first",
+        default: true
+    },
     actionLabel: {
         type: OptionType.STRING,
         description: "Button label to click on the controller message",
@@ -48,14 +57,12 @@ const settings = definePluginSettings({
         description: "Part of the followup message text that contains the dropdown",
         default: "Select a member to"
     },
-    mutedMode: {
-        type: OptionType.SELECT,
-        description: "Which mute states should count",
-        options: [
-            { label: "Self muted or server muted", value: "either", default: true },
-            { label: "Server muted only", value: "server" },
-            { label: "Self muted only", value: "self" }
-        ]
+    preClickDelayMs: {
+        type: OptionType.SLIDER,
+        description: "Delay after sending the trigger command before searching for the controller button",
+        default: 500,
+        markers: [0, 250, 500, 750, 1000, 1500],
+        stickToMarkers: false
     },
     pollMs: {
         type: OptionType.SLIDER,
@@ -117,6 +124,26 @@ function getCurrentVoiceChannelId(): string | null {
     return myVoiceState?.channelId ?? null;
 }
 
+function getSelectedChannelId(): string | null {
+    try {
+        return (SelectedChannelStore as SelectedChannelStoreType)?.getChannelId?.() ?? null;
+    } catch {
+        return null;
+    }
+}
+
+function getCommandTargetChannelId(): string | null {
+    const override = settings.store.commandChannelId.trim();
+    if (override) return override;
+
+    if (settings.store.preferSelectedChat) {
+        const selectedId = getSelectedChannelId();
+        if (selectedId) return selectedId;
+    }
+
+    return getCurrentVoiceChannelId();
+}
+
 function getVoiceStatesForCurrentChannel(): VoiceState[] {
     const channelId = getCurrentVoiceChannelId();
     if (!channelId) return [];
@@ -142,17 +169,6 @@ function isWatchedUser(userId: string): boolean {
     if (!watch.size) return false;
 
     return getUserNames(userId).some(name => watch.has(normalize(name)));
-}
-
-function isMuted(state: VoiceState): boolean {
-    const mode = settings.store.mutedMode;
-    const serverMuted = Boolean(state.mute || state.deaf);
-    const selfMuted = Boolean(state.selfMute || state.selfDeaf);
-    const anyMuted = Boolean(state.isVoiceMuted?.() || serverMuted || selfMuted);
-
-    if (mode === "server") return serverMuted;
-    if (mode === "self") return selfMuted;
-    return anyMuted;
 }
 
 function delay(ms: number) {
@@ -213,27 +229,34 @@ function findOptionByNames(names: string[]): HTMLElement | null {
     return null;
 }
 
-function sendCommand(channelId: string, content: string) {
+function sendCommand(content: string): string {
+    const channelId = getCommandTargetChannelId();
+    if (!channelId) throw new Error("Could not resolve a channel for the trigger command");
+
+    const channel = ChannelStore.getChannel(channelId);
+    if (!channel) throw new Error(`Could not resolve command target channel ${channelId}`);
+
     MessageActions.sendMessage(channelId, {
         content,
         tts: false,
         invalidEmojis: [],
         validNonShortcutEmojis: []
     });
+
+    const channelLabel = channel?.name ?? channelId;
+    showToast(`Sent ${content} to ${channelLabel}`);
+    return channelId;
 }
 
 async function clickTransferAndSelectUser(userId: string) {
     const channelId = getCurrentVoiceChannelId();
     if (!channelId) throw new Error("You are not in a voice channel");
 
-    const channel = ChannelStore.getChannel(channelId);
-    if (!channel) throw new Error("Could not resolve current voice channel");
-
     const names = getUserNames(userId);
     if (!names.length) throw new Error("Could not resolve target user names");
 
-    showToast(`Sending ${settings.store.triggerCommand} for ${names[0]}`);
-    sendCommand(channel.id, settings.store.triggerCommand);
+    sendCommand(settings.store.triggerCommand);
+    await delay(settings.store.preClickDelayMs);
 
     const button = await waitForElement(
         () => getNewestButtonByLabel(settings.store.actionLabel),
@@ -270,7 +293,6 @@ async function handleNewJoin(state: VoiceState) {
     if (!me || state.userId === me.id) return;
     if (inFlightUsers.has(state.userId)) return;
     if (!isWatchedUser(state.userId)) return;
-    if (!isMuted(state)) return;
 
     inFlightUsers.add(state.userId);
 
@@ -327,8 +349,8 @@ function stopLoop() {
 }
 
 export default definePlugin({
-    name: "AutoTransferMutedWatchedUsers",
-    description: "When a watched user joins your current voice channel while muted, send !vc, click Transfer, and select that user.",
+    name: "AutoTransferWatchedUsers",
+    description: "When a watched user joins your current voice channel, send the trigger command, click Transfer, and select that user.",
     authors: [{ name: "Your Name", id: 0n }],
     settings,
     start() {
