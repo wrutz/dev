@@ -205,21 +205,49 @@ function findLatestPromptContainer(promptText: string): HTMLElement | null {
     return matches.at(-1) ?? null;
 }
 
-function findComboTrigger(root: ParentNode): HTMLElement | null {
-    return (
-        root.querySelector('[role="combobox"]') as HTMLElement |
-        null
-    ) ?? (
-        root.querySelector('[aria-haspopup="listbox"]') as HTMLElement |
-        null
-    );
+function isVisible(element: Element | null | undefined): element is HTMLElement {
+    if (!(element instanceof HTMLElement)) return false;
+    const style = window.getComputedStyle(element);
+    const rect = element.getBoundingClientRect();
+    return style.display !== "none" && style.visibility !== "hidden" && rect.width > 0 && rect.height > 0;
 }
 
-function findOptionByNames(names: string[]): HTMLElement | null {
-    const lowered = names.map(normalize).filter(Boolean);
-    const options = Array.from(document.querySelectorAll('[role="option"], [aria-selected]')) as HTMLElement[];
+function fireClick(element: HTMLElement) {
+    element.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true }));
+    element.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+    element.dispatchEvent(new MouseEvent("pointerup", { bubbles: true }));
+    element.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
+    element.click();
+}
 
-    for (const option of options) {
+function findComboTrigger(root: ParentNode): HTMLElement | null {
+    const candidates = Array.from(root.querySelectorAll('[role="combobox"], [aria-haspopup="listbox"]')) as HTMLElement[];
+    return candidates.filter(isVisible).at(-1) ?? null;
+}
+
+function getComboListbox(combo: HTMLElement): HTMLElement | null {
+    const controlsId = combo.getAttribute("aria-controls");
+    if (controlsId) {
+        const controlled = document.getElementById(controlsId);
+        if (isVisible(controlled)) return controlled;
+    }
+
+    const expanded = Array.from(document.querySelectorAll('[role="listbox"]')) as HTMLElement[];
+    return expanded.filter(isVisible).at(-1) ?? null;
+}
+
+function findOptionByNames(names: string[], combo?: HTMLElement | null): HTMLElement | null {
+    const lowered = names.map(normalize).filter(Boolean);
+    const searchRoot = combo ? getComboListbox(combo) ?? document : document;
+    const options = Array.from(searchRoot.querySelectorAll('[role="option"], [aria-selected]')) as HTMLElement[];
+    const visibleOptions = options.filter(isVisible);
+
+    for (const name of lowered) {
+        const exact = visibleOptions.find(option => visibleText(option) === name);
+        if (exact) return exact;
+    }
+
+    for (const option of visibleOptions) {
         const text = visibleText(option);
         if (lowered.some(name => text.includes(name))) {
             return option;
@@ -272,19 +300,21 @@ async function clickTransferAndSelectUser(userId: string) {
     );
 
     const combo = await waitForElement(
-        () => findComboTrigger(promptRoot),
+        () => findComboTrigger(promptRoot) ?? findComboTrigger(document),
         settings.store.uiTimeoutMs
     );
 
-    combo.click();
-    await delay(250);
+    fireClick(combo);
+    combo.focus();
+    await delay(350);
 
     const option = await waitForElement(
-        () => findOptionByNames(names),
+        () => findOptionByNames(names, combo),
         settings.store.uiTimeoutMs
     );
 
-    option.click();
+    option.scrollIntoView({ block: "nearest" });
+    fireClick(option);
     showToast(`Selected ${names[0]} in transfer dropdown`);
 }
 
