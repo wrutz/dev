@@ -4,6 +4,7 @@
  */
 
 import { definePluginSettings } from "@api/Settings";
+import { getCurrentChannel } from "@utils/discord";
 import definePlugin, { OptionType } from "@utils/types";
 import { findByPropsLazy, findStoreLazy } from "@webpack";
 import { ChannelStore, Toasts, UserStore } from "@webpack/common";
@@ -186,12 +187,26 @@ function findOptionByNames(names: string[]): HTMLElement | null {
     return null;
 }
 
-function sendCommand(channelId: string, content: string) {
-    MessageActions.sendMessage(channelId, {
-        content,
-        tts: false,
-        invalidEmojis: [],
-        validNonShortcutEmojis: []
+function getTargetChatChannelId(): string | null {
+    const voiceChannelId = getCurrentVoiceChannelId();
+    const currentChannelId = getCurrentChannel()?.id ?? null;
+
+    if (currentChannelId === voiceChannelId) {
+        return currentChannelId;
+    }
+
+    return voiceChannelId;
+}
+
+function sendCommand(content: string) {
+    const targetChannelId = getTargetChatChannelId();
+    if (!targetChannelId) {
+        throw new Error("Could not resolve a target chat channel");
+    }
+
+    showToast(`Sending command to channel ${targetChannelId}`);
+    MessageActions.sendMessage(targetChannelId, {
+        content
     });
 }
 
@@ -206,7 +221,7 @@ async function clickTransferAndSelectUser(userId: string) {
     if (!names.length) throw new Error("Could not resolve target user names");
 
     showToast(`Sending ${settings.store.triggerCommand} for ${names[0]}`);
-    sendCommand(channel.id, settings.store.triggerCommand);
+    sendCommand(settings.store.triggerCommand);
 
     const button = await waitForElement(
         () => getNewestButtonByLabel(settings.store.actionLabel),
