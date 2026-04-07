@@ -1,21 +1,25 @@
 /*
  * Vencord / Equicord user plugin
- * Auto transfers watched users when they join your current voice channel.
+ * Auto transfers watched users when they join your current voice channel while muted.
  */
 
 import { definePluginSettings } from "@api/Settings";
-import { getCurrentChannel } from "@utils/discord";
+import { Devs } from "@utils/constants";
 import definePlugin, { OptionType } from "@utils/types";
 import { findByPropsLazy, findStoreLazy } from "@webpack";
 import { ChannelStore, Toasts, UserStore } from "@webpack/common";
 
 const VoiceStateStore = findStoreLazy("VoiceStateStore");
-const MessageCreator = findByPropsLazy("sendMessage", "getSendMessageOptionsForReply");
-const PendingReplyStore = findByPropsLazy("getPendingReply");
+const MessageActions = findByPropsLazy("sendMessage", "editMessage");
 
 type VoiceState = {
     userId: string;
     channelId?: string | null;
+    mute?: boolean;
+    deaf?: boolean;
+    selfMute?: boolean;
+    selfDeaf?: boolean;
+    isVoiceMuted?: () => boolean;
 };
 
 const settings = definePluginSettings({
@@ -43,6 +47,15 @@ const settings = definePluginSettings({
         type: OptionType.STRING,
         description: "Part of the followup message text that contains the dropdown",
         default: "Select a member to"
+    },
+    mutedMode: {
+        type: OptionType.SELECT,
+        description: "Which mute states should count",
+        options: [
+            { label: "Self muted or server muted", value: "either", default: true },
+            { label: "Server muted only", value: "server" },
+            { label: "Self muted only", value: "self" }
+        ]
     },
     pollMs: {
         type: OptionType.SLIDER,
@@ -85,15 +98,14 @@ function watchedSet(): Set<string> {
 
 function showToast(message: string) {
     if (!settings.store.debugToasts) return;
-
     try {
         Toasts.show({
             message,
-            id: `auto-transfer-${Date.now()}`,
+            id: Toasts.genId?.() ?? `auto-transfer-${Date.now()}`,
             type: Toasts.Type?.MESSAGE ?? 0
         });
     } catch {
-        console.log("[AutoTransferWatchedUsers]", message);
+        console.log("[AutoTransferMutedWatchedUsers]", message);
     }
 }
 
@@ -132,6 +144,17 @@ function isWatchedUser(userId: string): boolean {
     return getUserNames(userId).some(name => watch.has(normalize(name)));
 }
 
+function isMuted(state: VoiceState): boolean {
+    const mode = settings.store.mutedMode;
+    const serverMuted = Boolean(state.mute || state.deaf);
+    const selfMuted = Boolean(state.selfMute || state.selfDeaf);
+    const anyMuted = Boolean(state.isVoiceMuted?.() || serverMuted || selfMuted);
+
+    if (mode === "server") return serverMuted;
+    if (mode === "self") return selfMuted;
+    return anyMuted;
+}
+
 function delay(ms: number) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
@@ -168,103 +191,19 @@ function findLatestPromptContainer(promptText: string): HTMLElement | null {
 
 function findComboTrigger(root: ParentNode): HTMLElement | null {
     return (
-        root.querySelector('[role="combobox"]') as HTMLElement | null
+        root.querySelector('[role="combobox"]') as HTMLElement |
+        null
     ) ?? (
-        root.querySelector('[aria-haspopup="listbox"]') as HTMLElement | null
+        root.querySelector('[aria-haspopup="listbox"]') as HTMLElement |
+        null
     );
-}
-
-function clickElement(element: HTMLElement) {
-    element.scrollIntoView({ block: "nearest" });
-
-    const mouseInit = { bubbles: true, cancelable: true, view: window };
-    const pointerInit = { bubbles: true, cancelable: true };
-
-    element.dispatchEvent(new MouseEvent("mouseenter", mouseInit));
-    element.dispatchEvent(new MouseEvent("mouseover", mouseInit));
-
-    if (typeof PointerEvent !== "undefined") {
-        element.dispatchEvent(new PointerEvent("pointerdown", pointerInit));
-    }
-
-    element.dispatchEvent(new MouseEvent("mousedown", mouseInit));
-
-    if (typeof PointerEvent !== "undefined") {
-        element.dispatchEvent(new PointerEvent("pointerup", pointerInit));
-    }
-
-    element.dispatchEvent(new MouseEvent("mouseup", mouseInit));
-    element.dispatchEvent(new MouseEvent("click", mouseInit));
-}
-
-function findSearchInput(root?: ParentNode): HTMLInputElement | null {
-    const selectors = [
-        'input[role="combobox"]',
-        'input[aria-autocomplete="list"]',
-        'input[autocomplete]',
-        'input'
-    ].join(", ");
-
-    const candidates = Array.from((root ?? document).querySelectorAll(selectors)) as HTMLInputElement[];
-
-    for (const input of candidates) {
-        const style = window.getComputedStyle(input);
-        if (style.display === "none" || style.visibility === "hidden") continue;
-        if ((input.offsetWidth ?? 0) <= 0 && (input.offsetHeight ?? 0) <= 0) continue;
-        return input;
-    }
-
-    return null;
-}
-
-function setInputValue(input: HTMLInputElement, value: string) {
-    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
-    setter?.call(input, value);
-    input.dispatchEvent(new Event("input", { bubbles: true }));
-    input.dispatchEvent(new Event("change", { bubbles: true }));
-}
-
-function pressKey(element: HTMLElement, key: string) {
-    const keyCode = key === "Enter" ? 13 : key === "ArrowDown" ? 40 : 0;
-    const eventInit = {
-        key,
-        code: key,
-        keyCode,
-        which: keyCode,
-        bubbles: true,
-        cancelable: true
-    };
-
-    element.dispatchEvent(new KeyboardEvent("keydown", eventInit));
-    element.dispatchEvent(new KeyboardEvent("keypress", eventInit));
-    element.dispatchEvent(new KeyboardEvent("keyup", eventInit));
 }
 
 function findOptionByNames(names: string[]): HTMLElement | null {
     const lowered = names.map(normalize).filter(Boolean);
-    const selectors = [
-        '[role="option"]',
-        '[aria-selected]',
-        '[id*="option"]',
-        '[class*="option"]',
-        '[class*="selectable"]',
-        '[class*="item"]'
-    ].join(", ");
+    const options = Array.from(document.querySelectorAll('[role="option"], [aria-selected]')) as HTMLElement[];
 
-    const options = Array.from(document.querySelectorAll(selectors)) as HTMLElement[];
-
-    const visibleOptions = options.filter(option => {
-        const text = visibleText(option);
-        const style = window.getComputedStyle(option);
-        return Boolean(text) && style.display !== "none" && style.visibility !== "hidden";
-    });
-
-    for (const name of lowered) {
-        const exact = visibleOptions.find(option => visibleText(option) === name);
-        if (exact) return exact;
-    }
-
-    for (const option of visibleOptions) {
+    for (const option of options) {
         const text = visibleText(option);
         if (lowered.some(name => text.includes(name))) {
             return option;
@@ -274,52 +213,56 @@ function findOptionByNames(names: string[]): HTMLElement | null {
     return null;
 }
 
-async function chooseUserFromDropdown(promptRoot: HTMLElement, names: string[]) {
+function sendCommand(channelId: string, content: string) {
+    MessageActions.sendMessage(channelId, {
+        content,
+        tts: false,
+        invalidEmojis: [],
+        validNonShortcutEmojis: []
+    });
+}
+
+async function clickTransferAndSelectUser(userId: string) {
+    const channelId = getCurrentVoiceChannelId();
+    if (!channelId) throw new Error("You are not in a voice channel");
+
+    const channel = ChannelStore.getChannel(channelId);
+    if (!channel) throw new Error("Could not resolve current voice channel");
+
+    const names = getUserNames(userId);
+    if (!names.length) throw new Error("Could not resolve target user names");
+
+    showToast(`Sending ${settings.store.triggerCommand} for ${names[0]}`);
+    sendCommand(channel.id, settings.store.triggerCommand);
+
+    const button = await waitForElement(
+        () => getNewestButtonByLabel(settings.store.actionLabel),
+        settings.store.uiTimeoutMs
+    );
+
+    button.click();
+    showToast(`Clicked ${settings.store.actionLabel} for ${names[0]}`);
+
+    const promptRoot = await waitForElement(
+        () => findLatestPromptContainer(settings.store.selectPromptText),
+        settings.store.uiTimeoutMs
+    );
+
     const combo = await waitForElement(
         () => findComboTrigger(promptRoot),
         settings.store.uiTimeoutMs
     );
 
-    clickElement(combo);
-    await delay(350);
+    combo.click();
+    await delay(250);
 
-    const input = await waitForElement(
-        () => findSearchInput(promptRoot) ?? findSearchInput(document.body),
+    const option = await waitForElement(
+        () => findOptionByNames(names),
         settings.store.uiTimeoutMs
     );
 
-    const primaryName = names[0] ?? "";
-    input.focus();
-    clickElement(input);
-    await delay(100);
-
-    if (primaryName) {
-        setInputValue(input, primaryName);
-        await delay(500);
-    }
-
-    let option = findOptionByNames(names);
-
-    if (option) {
-        clickElement(option);
-        await delay(200);
-        showToast(`Selected ${primaryName} in transfer dropdown`);
-        return;
-    }
-
-    showToast(`No direct match for ${primaryName}, trying keyboard selection`);
-    pressKey(input, "ArrowDown");
-    await delay(150);
-    pressKey(input, "Enter");
-    await delay(300);
-
-    option = findOptionByNames(names);
-    if (option) {
-        showToast(`Selected ${primaryName} in transfer dropdown`);
-        return;
-    }
-
-    throw new Error(`Could not select dropdown option for ${primaryName}`);
+    option.click();
+    showToast(`Selected ${names[0]} in transfer dropdown`);
 }
 
 async function handleNewJoin(state: VoiceState) {
@@ -327,13 +270,14 @@ async function handleNewJoin(state: VoiceState) {
     if (!me || state.userId === me.id) return;
     if (inFlightUsers.has(state.userId)) return;
     if (!isWatchedUser(state.userId)) return;
+    if (!isMuted(state)) return;
 
     inFlightUsers.add(state.userId);
 
     try {
         await clickTransferAndSelectUser(state.userId);
     } catch (error) {
-        console.error("[AutoTransferWatchedUsers] Failed to automate transfer", error);
+        console.error("[AutoTransferMutedWatchedUsers] Failed to automate transfer", error);
         showToast("Auto transfer failed. Open devtools for details.");
     } finally {
         await delay(1500);
@@ -383,12 +327,9 @@ function stopLoop() {
 }
 
 export default definePlugin({
-    name: "AutoTransferWatchedUsers",
-    description: "When a watched user joins your current voice channel, send !vc, click Transfer, and select that user.",
-    authors: [{
-        name: "Your Name",
-        id: 0n
-    }],
+    name: "AutoTransferMutedWatchedUsers",
+    description: "When a watched user joins your current voice channel while muted, send !vc, click Transfer, and select that user.",
+    authors: [{ name: "Your Name", id: 0n }],
     settings,
     start() {
         startLoop();
