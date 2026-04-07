@@ -16,9 +16,10 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-import { panelClasses } from "@plugins/philsPluginLibrary/discordModules";
 import { classes } from "@utils/misc";
 import React from "react";
+
+import { panelClasses } from "../../discordModules";
 
 export interface SettingsPanelRowProps {
     children: React.ComponentProps<"div">["children"];
@@ -34,3 +35,5 @@ export const SettingsPanelRow = ({ children }: SettingsPanelRowProps) => {
         </div>
     );
 };
+
+

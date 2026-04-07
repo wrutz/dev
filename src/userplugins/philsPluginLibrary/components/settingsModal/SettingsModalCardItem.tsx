@@ -37,3 +37,5 @@ export const SettingsModalCardItem = ({ children, title }: SettingsModalCardItem
         </div>
     );
 };
+
+

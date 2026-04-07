@@ -17,11 +17,12 @@
 */
 
 import { Flex } from "@components/Flex";
-import { PluginSettings, ProfilableStore } from "@plugins/philsPluginLibrary";
-import { CopyButton, DeleteButton, NewButton, SaveButton } from "@plugins/philsPluginLibrary/components/buttons";
-import { SettingsModalCard } from "@plugins/philsPluginLibrary/components/settingsModal/SettingsModalCard";
-import { SettingsModalCardItem } from "@plugins/philsPluginLibrary/components/settingsModal/SettingsModalCardItem";
 import { Select, TextInput, useEffect, useState } from "@webpack/common";
+
+import { PluginSettings, ProfilableStore } from "../../../philsPluginLibrary";
+import { CopyButton, DeleteButton, NewButton, SaveButton } from "../buttons";
+import { SettingsModalCard } from "./SettingsModalCard";
+import { SettingsModalCardItem } from "./SettingsModalCardItem";
 
 export interface SettingsModalProfilesCardProps<T extends PluginSettings = {}> extends React.ComponentProps<typeof SettingsModalCard> {
     profileableStore: ProfilableStore<T, any>;
@@ -110,3 +111,5 @@ export const SettingsModalProfilesCard = <T extends PluginSettings = {},>(props:
         </SettingsModalCard>
     );
 };
+
+

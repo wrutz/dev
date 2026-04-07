@@ -44,3 +44,7 @@ interface DeepPartialArray<T> extends Array<DeepPartial<T>> { }
 type DeepPartialObject<T> = {
     [key in keyof T]?: DeepPartial<T[key]>;
 };
+
+
+
+

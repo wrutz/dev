@@ -29,3 +29,5 @@ export const SettingsModalCardRow = ({ children, style, gap }: SettingsModalRowP
         <div style={{ display: "flex", gap: gap ?? "1em", ...style }}>{children}</div>
     );
 };
+
+

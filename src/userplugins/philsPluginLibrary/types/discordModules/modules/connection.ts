@@ -16,9 +16,9 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-import { Framerate, Resolution } from "@plugins/philsPluginLibrary/types";
-import TypedEmitter from "typed-emitter";
+type TypedEmitter<T> = import("events").EventEmitter & { on: any; once: any; removeListener: any; };
 
+import { Framerate, Resolution } from "../../../types";
 import { Conn, FramerateReducer, VideoQualityManager } from "./";
 
 export const ConnectionEvent = {
@@ -385,3 +385,5 @@ export interface DesktopSourceOptions extends Partial<Resolution> {
     allowScreenCaptureKit?: boolean;
     hdrCaptureMode?: HdrCaptureMode[keyof HdrCaptureMode];
 }
+
+

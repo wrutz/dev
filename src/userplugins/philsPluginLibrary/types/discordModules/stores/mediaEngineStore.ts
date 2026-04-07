@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-import { types } from "@plugins/philsPluginLibrary";
+import { types } from "../../..";
 
 export type MediaEngineStore = MediaEngineStore__ &
     MediaEngineStore_ & {
@@ -117,3 +117,5 @@ export interface MediaEngineStore__ {
     getDispatchToken: (...args: any[]) => any;
     mustEmitChanges: (...args: any[]) => any;
 }
+
+

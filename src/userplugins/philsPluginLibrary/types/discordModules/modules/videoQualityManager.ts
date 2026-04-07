@@ -16,8 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-import { Bitrate, Framerate, Resolution } from "@plugins/philsPluginLibrary/types";
-
+import { Bitrate, Framerate, Resolution } from "../../";
 import { Connection } from "./";
 
 export type VideoQualityManager = VideoQualityManager_ & {
@@ -80,3 +79,5 @@ export interface LadderValue extends Resolution, Framerate {
     budgetPortion: number;
     mutedFramerate: Framerate;
 }
+
+

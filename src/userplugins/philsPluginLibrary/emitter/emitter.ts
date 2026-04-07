@@ -17,7 +17,8 @@
 */
 
 import EventEmitter from "events";
-import TypedEmitter from "typed-emitter";
+// typed-emitter kaldırıldı; yerel minimal tip ile değiştirildi
+type TypedEmitter<T> = import("events").EventEmitter & { on: any; once: any; removeListener: any; };
 
 export type TypedEmitterEvents<J extends TypedEmitter<any>> = J extends TypedEmitter<
     infer N
@@ -26,7 +27,7 @@ export type TypedEmitterEvents<J extends TypedEmitter<any>> = J extends TypedEmi
     : never;
 
 export interface EmitterEvent {
-    emitter: TypedEmitter<any> | EventEmitter;
+    emitter: TypedEmitter<any>;
     event: any;
     fn: (...args: any[]) => any;
     plugin?: string;
@@ -55,27 +56,19 @@ export class Emitter {
         plugin?: string
     ): () => void {
         emitter[type](event, fn);
-        const emitterEvent: EmitterEvent = {
-            emitter,
+        const emitterEvenet: EmitterEvent = {
+            emitter: emitter as TypedEmitter<any>,
             event,
             fn,
             plugin: plugin
         };
-        this.events.push(emitterEvent);
+        this.events.push(emitterEvenet);
 
-        return () => this.removeListener(emitterEvent);
-    }
-
-    private static isTypedEmitter(emitter: any): emitter is TypedEmitter<any> {
-        return typeof emitter.off === "function";
+        return () => this.removeListener(emitterEvenet);
     }
 
     public static removeListener(emitterEvent: EmitterEvent) {
-        if (this.isTypedEmitter(emitterEvent.emitter)) {
-            emitterEvent.emitter.off(emitterEvent.event, emitterEvent.fn);
-        } else {
-            (emitterEvent.emitter as EventEmitter).removeListener(emitterEvent.event, emitterEvent.fn);
-        }
+        emitterEvent.emitter.removeListener(emitterEvent.event, emitterEvent.fn);
         this.events = this.events.filter(
             emitterEvent_ => emitterEvent_ !== emitterEvent
         );
@@ -86,10 +79,11 @@ export class Emitter {
             this.events.forEach(emitterEvent =>
                 this.removeListener(emitterEvent)
             );
-        } else {
+        } else
             this.events.forEach(emitterEvent =>
                 plugin === emitterEvent.plugin && this.removeListener(emitterEvent)
             );
-        }
     }
 }
+
+

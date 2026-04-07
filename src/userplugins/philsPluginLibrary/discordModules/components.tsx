@@ -16,8 +16,11 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-import { types } from "@plugins/philsPluginLibrary";
 import { LazyComponent } from "@utils/react";
 import { findByCode } from "@webpack";
 
+import { types } from "../";
+
 export const UserSummaryItem = LazyComponent<React.ComponentProps<types.UserSummaryItem>>(() => findByCode("defaultRenderUser", "showDefaultAvatarsForNullUsers"));
+
+
