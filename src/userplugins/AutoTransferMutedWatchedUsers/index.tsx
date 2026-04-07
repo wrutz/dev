@@ -213,11 +213,32 @@ function isVisible(element: Element | null | undefined): element is HTMLElement 
 }
 
 function fireClick(element: HTMLElement) {
-    const pointerInit = { bubbles: true, cancelable: true, composed: true, pointerId: 1, isPrimary: true, button: 0, buttons: 1 };
-    const mouseInit = { bubbles: true, cancelable: true, composed: true, button: 0, buttons: 1 };
+    const rect = element.getBoundingClientRect();
+    const clientX = rect.left + rect.width / 2;
+    const clientY = rect.top + rect.height / 2;
+    const pointerInit = {
+        bubbles: true,
+        cancelable: true,
+        composed: true,
+        pointerId: 1,
+        isPrimary: true,
+        button: 0,
+        buttons: 1,
+        clientX,
+        clientY,
+        pointerType: "mouse"
+    };
+    const mouseInit = {
+        bubbles: true,
+        cancelable: true,
+        composed: true,
+        button: 0,
+        buttons: 1,
+        clientX,
+        clientY
+    };
 
     element.dispatchEvent(new MouseEvent("mouseover", mouseInit));
-    element.dispatchEvent(new MouseEvent("mouseenter", mouseInit));
     element.dispatchEvent(new MouseEvent("mousemove", mouseInit));
 
     if (typeof PointerEvent !== "undefined") {
@@ -228,6 +249,7 @@ function fireClick(element: HTMLElement) {
     }
 
     element.dispatchEvent(new MouseEvent("mousedown", mouseInit));
+    element.focus();
 
     if (typeof PointerEvent !== "undefined") {
         element.dispatchEvent(new PointerEvent("pointerup", { ...pointerInit, buttons: 0 }));
@@ -235,7 +257,6 @@ function fireClick(element: HTMLElement) {
 
     element.dispatchEvent(new MouseEvent("mouseup", { ...mouseInit, buttons: 0 }));
     element.dispatchEvent(new MouseEvent("click", { ...mouseInit, buttons: 0 }));
-    element.click();
 }
 
 function findComboTrigger(root: ParentNode): HTMLElement | null {
@@ -267,14 +288,33 @@ function getComboInput(combo: HTMLElement): HTMLElement {
 }
 
 function getClickableComboTarget(combo: HTMLElement): HTMLElement {
-    return (combo.querySelector('input') as HTMLElement | null)
+    return (combo.querySelector('[class*="wrapper"]') as HTMLElement | null)
+        ?? (combo.querySelector('[class*="select"]') as HTMLElement | null)
+        ?? (combo.querySelector('input') as HTMLElement | null)
+        ?? (combo.querySelector('[role="button"]') as HTMLElement | null)
         ?? (combo.querySelector('[class*="control"]') as HTMLElement | null)
         ?? (combo.querySelector('[class*="container"]') as HTMLElement | null)
         ?? combo;
 }
 
 function pressKey(element: HTMLElement, key: string) {
-    const init = { key, bubbles: true, cancelable: true, composed: true };
+    const keyMap: Record<string, { code: string; keyCode: number }> = {
+        Enter: { code: "Enter", keyCode: 13 },
+        ArrowDown: { code: "ArrowDown", keyCode: 40 },
+        " ": { code: "Space", keyCode: 32 }
+    };
+
+    const mapped = keyMap[key] ?? { code: key, keyCode: 0 };
+    const init = {
+        key,
+        code: mapped.code,
+        keyCode: mapped.keyCode,
+        which: mapped.keyCode,
+        bubbles: true,
+        cancelable: true,
+        composed: true
+    };
+
     element.dispatchEvent(new KeyboardEvent("keydown", init));
     element.dispatchEvent(new KeyboardEvent("keypress", init));
     element.dispatchEvent(new KeyboardEvent("keyup", init));
@@ -293,6 +333,12 @@ function setNativeInputValue(element: HTMLElement, value: string) {
 
 function isDropdownOpen(combo: HTMLElement): boolean {
     if (combo.getAttribute("aria-expanded") === "true") return true;
+    if (combo.getAttribute("data-state") === "open") return true;
+
+    const clickable = getClickableComboTarget(combo);
+    if (clickable.getAttribute("aria-expanded") === "true") return true;
+    if (clickable.getAttribute("data-state") === "open") return true;
+
     if (getComboListbox(combo)) return true;
     return false;
 }
@@ -308,23 +354,26 @@ function clickElementCenter(element: HTMLElement) {
 }
 
 function getDropdownCandidates(combo: HTMLElement): HTMLElement[] {
-    const direct = [
-        getComboInput(combo),
-        getClickableComboTarget(combo),
-        combo,
-        combo.parentElement,
-        combo.previousElementSibling,
-        combo.nextElementSibling
-    ].filter((x): x is HTMLElement => x instanceof HTMLElement);
-
-    const nested = Array.from(combo.querySelectorAll('input, button, [role="button"], [tabindex], [class*="control"], [class*="container"], [class*="value"], [class*="Value"], [class*="indicator"], svg')) as HTMLElement[];
+    const clickable = getClickableComboTarget(combo);
+    const input = getComboInput(combo);
+    const wrapper = combo.querySelector('[class*="wrapper"]') as HTMLElement | null;
     const unique: HTMLElement[] = [];
 
-    for (const candidate of [...direct, ...nested]) {
-        if (isVisible(candidate) && !unique.includes(candidate)) {
+    const push = (candidate: Element | null | undefined) => {
+        if (candidate instanceof HTMLElement && isVisible(candidate) && !unique.includes(candidate)) {
             unique.push(candidate);
         }
-    }
+    };
+
+    push(wrapper);
+    push(clickable);
+    push(input);
+    push(combo);
+    push(combo.parentElement);
+    push(clickable.parentElement);
+
+    const nested = Array.from(combo.querySelectorAll('input, button, [role="button"], [tabindex], [class*="wrapper"], [class*="select"], [class*="control"], [class*="container"], [class*="value"], [class*="indicator"], svg'));
+    for (const candidate of nested) push(candidate);
 
     return unique;
 }
