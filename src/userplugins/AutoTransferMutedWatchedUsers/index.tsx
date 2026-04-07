@@ -257,6 +257,14 @@ function getComboListbox(combo: HTMLElement): HTMLElement | null {
 function getComboInput(combo: HTMLElement): HTMLElement {
     return (combo.querySelector("input") as HTMLElement | null)
         ?? (combo.querySelector('[contenteditable="true"]') as HTMLElement | null)
+        ?? (combo.querySelector('[tabindex]') as HTMLElement | null)
+        ?? combo;
+}
+
+function getClickableComboTarget(combo: HTMLElement): HTMLElement {
+    return (combo.querySelector('input') as HTMLElement | null)
+        ?? (combo.querySelector('[class*="control"]') as HTMLElement | null)
+        ?? (combo.querySelector('[class*="container"]') as HTMLElement | null)
         ?? combo;
 }
 
@@ -278,6 +286,39 @@ function setNativeInputValue(element: HTMLElement, value: string) {
     return true;
 }
 
+async function openDropdown(combo: HTMLElement) {
+    const target = getClickableComboTarget(combo);
+    const input = getComboInput(combo);
+
+    target.scrollIntoView({ block: "nearest" });
+    target.focus();
+    input.focus();
+    await delay(60);
+
+    fireClick(target);
+    await delay(120);
+
+    let listbox = getComboListbox(combo);
+    if (listbox) return;
+
+    pressKey(input, " ");
+    await delay(120);
+    listbox = getComboListbox(combo);
+    if (listbox) return;
+
+    pressKey(input, "Enter");
+    await delay(120);
+    listbox = getComboListbox(combo);
+    if (listbox) return;
+
+    pressKey(input, "ArrowDown");
+    await delay(160);
+    listbox = getComboListbox(combo);
+    if (listbox) return;
+
+    throw new Error("Could not open dropdown");
+}
+
 async function selectDropdownOption(combo: HTMLElement, names: string[]) {
     const input = getComboInput(combo);
     input.focus();
@@ -285,14 +326,14 @@ async function selectDropdownOption(combo: HTMLElement, names: string[]) {
     if (input instanceof HTMLInputElement || input instanceof HTMLTextAreaElement) {
         input.select();
         setNativeInputValue(input, names[0] ?? "");
-        await delay(200);
+        await delay(220);
     }
 
     let option = findOptionByNames(names, combo);
 
     if (!option) {
         pressKey(input, "ArrowDown");
-        await delay(150);
+        await delay(180);
         option = findOptionByNames(names, combo);
     }
 
@@ -301,8 +342,10 @@ async function selectDropdownOption(combo: HTMLElement, names: string[]) {
     }
 
     option.scrollIntoView({ block: "nearest" });
+    option.focus();
+    await delay(50);
     fireClick(option);
-    await delay(120);
+    await delay(150);
     pressKey(input, "Enter");
 }
 
@@ -374,9 +417,7 @@ async function clickTransferAndSelectUser(userId: string) {
         settings.store.uiTimeoutMs
     );
 
-    fireClick(combo);
-    combo.focus();
-    await delay(350);
+    await openDropdown(combo);
 
     await waitForElement(
         () => findOptionByNames(names, combo),
