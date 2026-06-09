@@ -1,0 +1,289 @@
+/* ────────────────────────────────────────────────────────────────
+   Live RPC Editor — refined modal styling
+   ──────────────────────────────────────────────────────────────── */
+
+.vc-liverpc-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 16px 20px 14px;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.vc-liverpc-modal-title {
+    margin: 0 !important;
+    font-size: 17px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    color: #f2f3f5 !important;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.vc-liverpc-modal-title::before {
+    content: "";
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #5865f2;
+    box-shadow: 0 0 12px #5865f299;
+}
+
+.vc-liverpc-modal-content {
+    padding: 16px 20px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.vc-liverpc-modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 12px 20px 16px;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    background: rgba(0, 0, 0, 0.12);
+}
+
+/* ─── Two-column layout ─── */
+.vc-liverpc-wrap {
+    display: flex;
+    gap: 20px;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.vc-liverpc-form-scroll {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.vc-liverpc-form-inner {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding-right: 8px;
+}
+
+/* ─── Top bar: Clone + Presets as subtle cards ─── */
+.vc-liverpc-top-bar {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    align-items: start;
+}
+
+.vc-liverpc-top-bar > div {
+    background: rgba(255, 255, 255, 0.025);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 8px;
+    padding: 8px 10px 10px;
+    min-width: 0;
+}
+
+/* ─── Form columns ─── */
+.vc-liverpc-form-columns {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    align-items: start;
+}
+
+.vc-liverpc-form-col {
+    background: rgba(255, 255, 255, 0.025);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 8px;
+    padding: 10px 10px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+}
+
+/* ─── Section titles ─── */
+.vc-liverpc-section-title {
+    color: #f2f3f5 !important;
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.08em !important;
+    margin: 0 0 4px !important;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    line-height: 1;
+}
+
+.vc-liverpc-section-title::before {
+    content: "";
+    width: 3px;
+    height: 11px;
+    background: #5865f2;
+    border-radius: 2px;
+}
+
+/* ─── Field labels ─── */
+.vc-liverpc-label {
+    color: #b5bac1 !important;
+    font-size: 10px !important;
+    font-weight: 600 !important;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin: 2px 0 -1px !important;
+    line-height: 1.2;
+}
+
+/* ─── Inputs: keep Discord's native look, just tighten height ─── */
+.vc-liverpc-form-inner input[type="text"],
+.vc-liverpc-form-inner input:not([type]),
+.vc-liverpc-form-inner textarea {
+    padding: 6px 10px !important;
+    height: auto !important;
+    min-height: 30px !important;
+    font-size: 13px !important;
+}
+
+/* ─── Field rows ─── */
+.vc-liverpc-field-row {
+    display: flex;
+    gap: 8px;
+}
+
+.vc-liverpc-field-row > * {
+    flex: 1;
+    min-width: 0;
+}
+
+/* ─── Dividers (almost invisible) ─── */
+.vc-liverpc-divider {
+    margin: 2px 0;
+    border: none;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.07), transparent);
+}
+
+/* hide the big divider between top-bar and form-columns — visual gap is enough */
+.vc-liverpc-form-inner > hr.vc-liverpc-divider {
+    display: none;
+}
+
+/* ─── Clone activity buttons / preset chips ─── */
+.vc-liverpc-clone-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.vc-liverpc-clone-buttons button {
+    flex-shrink: 0;
+}
+
+.vc-liverpc-preset-chip {
+    display: inline-flex;
+    align-items: stretch;
+    background: rgba(255, 255, 255, 0.04);
+    border-radius: 6px;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    transition: background 0.15s, border-color 0.15s;
+}
+
+.vc-liverpc-preset-chip:hover {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.1);
+}
+
+.vc-liverpc-preset-chip > button {
+    border-radius: 0 !important;
+    background: transparent !important;
+    border: none !important;
+}
+
+.vc-liverpc-preset-chip > button:last-child {
+    color: rgba(255, 255, 255, 0.5) !important;
+    padding: 0 10px !important;
+    font-size: 14px;
+}
+
+.vc-liverpc-preset-chip > button:last-child:hover {
+    background: rgba(237, 66, 69, 0.15) !important;
+    color: #ed4245 !important;
+}
+
+/* ─── Preview panel ─── */
+.vc-liverpc-preview-panel {
+    width: 340px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    min-height: 480px;
+    gap: 14px;
+}
+
+.vc-liverpc-preview-popout {
+    border-radius: 12px;
+    overflow: hidden auto;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.04), 0 12px 32px rgba(0, 0, 0, 0.4);
+    max-height: 600px;
+    background: rgba(0, 0, 0, 0.18);
+}
+
+.vc-liverpc-preview-popout > * {
+    pointer-events: none;
+    user-select: none;
+}
+
+.vc-liverpc-preview-popout > * * {
+    pointer-events: none !important;
+}
+
+.vc-liverpc-preview-popout:focus {
+    outline: none;
+}
+
+.vc-liverpc-preview-fallback {
+    padding: 14px;
+    background: rgba(0, 0, 0, 0.18);
+    border-radius: 10px;
+    width: 100%;
+}
+
+.vc-liverpc-preview-empty {
+    padding: 40px 16px;
+    text-align: center;
+    color: rgba(255, 255, 255, 0.4);
+    font-size: 13px;
+}
+
+.vc-liverpc-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+    margin-top: 0;
+}
+
+.vc-liverpc-actions button {
+    width: 100%;
+}
+
+/* ─── Scrollbar polish ─── */
+.vc-liverpc-form-scroll [class*="scrollerBase"] ::-webkit-scrollbar-thumb,
+.vc-liverpc-preview-popout::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.08) !important;
+    border-radius: 4px;
+}
+
+.vc-liverpc-form-scroll [class*="scrollerBase"] ::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.14) !important;
+}

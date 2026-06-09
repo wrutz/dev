@@ -1,0 +1,198 @@
+.vc-msgtimer-modal {
+    width: 740px !important;
+    max-width: 95vw;
+    max-height: 90vh;
+}
+
+.vc-msgtimer-header {
+    padding: 16px 16px 0 !important;
+}
+
+.vc-msgtimer-title-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 1;
+}
+
+.vc-msgtimer-title-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, var(--brand-500) 0%, var(--brand-560) 100%);
+    color: #fff;
+    flex-shrink: 0;
+}
+
+.vc-msgtimer-title-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.vc-msgtimer-body {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.vc-msgtimer-scroller {
+    max-height: 70vh;
+}
+
+.vc-msgtimer-content {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px;
+}
+
+.vc-msgtimer-master {
+    border-radius: 12px !important;
+    overflow: hidden;
+    transition: background 0.2s ease;
+}
+
+.vc-msgtimer-master-on {
+    background: color-mix(in srgb, var(--brand-500) 15%, var(--background-secondary)) !important;
+    border: 1px solid color-mix(in srgb, var(--brand-500) 30%, transparent) !important;
+}
+
+.vc-msgtimer-master-off {
+    background: var(--background-secondary) !important;
+    border: 1px solid var(--border-faint) !important;
+}
+
+.vc-msgtimer-master-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 4px 12px 12px;
+}
+
+.vc-msgtimer-master-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.vc-msgtimer-master-icon {
+    color: var(--brand-500);
+    flex-shrink: 0;
+}
+
+.vc-msgtimer-master-inner .vc-form-switch-container {
+    padding: 0;
+}
+
+.vc-msgtimer-section-label {
+    padding: 4px 0 0;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.vc-msgtimer-presets {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+}
+
+.vc-msgtimer-preset {
+    all: unset;
+    cursor: pointer;
+    text-align: center;
+    padding: 10px 8px;
+    border-radius: 10px;
+    background: var(--background-secondary);
+    border: 1px solid var(--border-faint);
+    transition: background 0.15s ease, border-color 0.15s ease, transform 0.05s ease;
+    user-select: none;
+}
+
+.vc-msgtimer-preset:hover {
+    background: var(--background-modifier-hover);
+    border-color: var(--border-strong);
+}
+
+.vc-msgtimer-preset:active {
+    transform: scale(0.98);
+}
+
+.vc-msgtimer-preset-active {
+    background: color-mix(in srgb, var(--brand-500) 18%, var(--background-secondary)) !important;
+    border-color: var(--brand-500) !important;
+}
+
+.vc-msgtimer-control {
+    border-radius: 10px !important;
+    padding: 12px !important;
+    transition: opacity 0.2s ease, border-color 0.2s ease;
+}
+
+.vc-msgtimer-control-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.vc-msgtimer-control-label {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;
+}
+
+.vc-msgtimer-control-value {
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.vc-msgtimer-control-slider {
+    margin-top: 10px;
+}
+
+.vc-msgtimer-unit-select {
+    margin-top: 10px;
+}
+
+.vc-msgtimer-hint {
+    border-radius: 8px !important;
+    padding: 10px 12px !important;
+}
+
+.vc-msgtimer-queue-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.vc-msgtimer-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    gap: 8px;
+}
+
+.vc-msgtimer-keybind-hint {
+    background: var(--background-modifier-accent);
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-family: var(--font-code);
+    letter-spacing: 0.02em;
+}
+
+.vc-msgtimer-pending-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    background: var(--background-modifier-accent);
+    font-variant-numeric: tabular-nums;
+}

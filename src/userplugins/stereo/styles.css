@@ -1,0 +1,328 @@
+.vc-stereo-modal {
+    width: 740px !important;
+    max-width: 95vw;
+    max-height: 90vh;
+}
+
+.vc-stereo-header {
+    padding: 16px 16px 0 !important;
+}
+
+.vc-stereo-title-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 1;
+}
+
+.vc-stereo-title-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, var(--brand-500) 0%, var(--brand-560) 100%);
+    color: #fff;
+    flex-shrink: 0;
+}
+
+.vc-stereo-title-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.vc-stereo-body {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.vc-stereo-scroller {
+    max-height: 70vh;
+}
+
+.vc-stereo-content {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px;
+}
+
+.vc-stereo-master {
+    border-radius: 12px !important;
+    overflow: hidden;
+    transition: background 0.2s ease;
+}
+
+.vc-stereo-master-on {
+    background: color-mix(in srgb, var(--brand-500) 15%, var(--background-secondary)) !important;
+    border: 1px solid color-mix(in srgb, var(--brand-500) 30%, transparent) !important;
+}
+
+.vc-stereo-master-off {
+    background: var(--background-secondary) !important;
+    border: 1px solid var(--border-faint) !important;
+}
+
+.vc-stereo-master-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 4px 12px 12px;
+}
+
+.vc-stereo-master-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.vc-stereo-master-icon {
+    color: var(--brand-500);
+}
+
+.vc-stereo-master-inner .vc-form-switch-container {
+    padding: 0;
+}
+
+.vc-stereo-section-label {
+    padding: 4px 0 0;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.vc-stereo-controls-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.vc-stereo-control {
+    border-radius: 10px !important;
+    padding: 12px !important;
+    transition: opacity 0.2s ease, border-color 0.2s ease;
+}
+
+.vc-stereo-control-off {
+    opacity: 0.5;
+}
+
+.vc-stereo-control-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.vc-stereo-control-header .vc-form-switch-container {
+    padding: 0;
+    flex-shrink: 0;
+}
+
+.vc-stereo-control-label {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;
+}
+
+.vc-stereo-control-slider {
+    margin-top: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.vc-stereo-control-value-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.vc-stereo-control-value {
+    font-variant-numeric: tabular-nums;
+}
+
+.vc-stereo-quality-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 2px 7px 2px 5px;
+    border-radius: 99px;
+    background: color-mix(in srgb, currentColor 12%, transparent);
+    border: 1px solid color-mix(in srgb, currentColor 25%, transparent);
+    white-space: nowrap;
+}
+
+.vc-stereo-quality-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+    flex-shrink: 0;
+}
+
+.vc-stereo-quality-max {
+    color: var(--brand-500);
+}
+
+.vc-stereo-quality-great {
+    color: var(--status-positive);
+}
+
+.vc-stereo-quality-good {
+    color: #FAA61A;
+}
+
+.vc-stereo-quality-fair {
+    color: var(--status-warning);
+}
+
+.vc-stereo-quality-low {
+    color: var(--status-danger);
+}
+
+.vc-stereo-hint {
+    border-radius: 8px !important;
+    padding: 10px 12px !important;
+    text-align: center;
+}
+
+.vc-stereo-footer {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    width: 100%;
+}
+
+.vc-stereo-tabs-row {
+    padding: 0 20px;
+    border-bottom: 1px solid var(--background-modifier-accent);
+}
+
+.vc-stereo-tab-item {
+    padding: 8px 0 !important;
+    margin-right: 16px !important;
+}
+
+.vc-stereo-install {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px !important;
+}
+
+.vc-stereo-install-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.vc-stereo-install-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.vc-stereo-patch-count {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 10px;
+    border-radius: 100px;
+    background: rgba(35, 165, 90, 0.18);
+    color: #23a559;
+    font-size: 12px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.vc-stereo-refresh-btn {
+    width: 28px;
+    height: 28px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--background-modifier-accent);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.1s;
+}
+
+.vc-stereo-refresh-btn:hover:not(:disabled) {
+    background: var(--background-modifier-hover);
+}
+
+.vc-stereo-refresh-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.vc-stereo-patch-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.vc-stereo-patch-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 8px;
+    border-radius: 6px;
+    font-size: 13px;
+    transition: background 0.1s;
+}
+
+.vc-stereo-patch-row:hover {
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.vc-stereo-patch-row[data-state="off"] {
+    opacity: 0.55;
+}
+
+.vc-stereo-patches-legend {
+    display: flex;
+    gap: 16px;
+    justify-content: center;
+    padding-top: 8px;
+    font-size: 11px;
+    color: #949ba4;
+}
+
+.vc-stereo-patches-legend span {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.vc-stereo-header-icon-btn {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    color: var(--text-muted, #b5bac1);
+    padding: 6px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.12s, color 0.12s;
+    margin-right: 4px;
+}
+.vc-stereo-header-icon-btn:hover {
+    background: rgba(255,255,255,0.06);
+    color: var(--text-default, #f2f3f5);
+}
