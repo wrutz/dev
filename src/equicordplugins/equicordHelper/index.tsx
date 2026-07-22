@@ -155,7 +155,8 @@ export default definePlugin({
         EquicordDevs.mart,
         EquicordDevs.omaw,
         Devs.Samwich,
-        Devs.AutumnVN
+        Devs.AutumnVN,
+        EquicordDevs.auggeeo
     ],
     required: true,
     settings,
@@ -178,7 +179,7 @@ export default definePlugin({
                 }
             ]
         },
-        // Fix a race condition?
+        // Fix a race condition
         {
             find: ".completeOperation(",
             replacement: {
@@ -186,11 +187,11 @@ export default definePlugin({
                 replace: "$2,$1"
             }
         },
-        // catch if it cant open
+        // Catch IndexedDB if it fails to open
         {
             find: "discarding speculative database",
             replacement: {
-                match: /await (\i)\((\i)\)(?=;.{0,15}this\.databases)/,
+                match: /await \i\(\i\)(?=;.{0,15}this\.databases)/,
                 replace: "$&.catch(()=>null)"
             }
         },
@@ -349,6 +350,16 @@ export default definePlugin({
             ],
             predicate: () => settings.store.hideVoiceIndicatorForMutedChannels,
         },
+        // Add opening profile functionality to some connections
+        {
+            find: "getPlatformUserUrl:",
+            replacement: [
+                {
+                    match: /name:("(?:Xbox|Epic Games)").{0,180}enabled:!0/g,
+                    replace: "$&,getPlatformUserUrl:e=>$self.getPlatformUrl($1, e)"
+                }
+            ]
+        },
     ],
     renderMessageAccessory(props) {
         return (
@@ -422,6 +433,16 @@ export default definePlugin({
             voiceState?.channelId === currentUserVoiceState?.channelId ||
             !UserGuildSettingsStore.isChannelMuted(guildId, voiceState?.channelId!)
         );
+    },
+    getPlatformUrl(platform, args) {
+        switch (platform) {
+            case "Xbox":
+                return `https://www.xbox.com/play/user/${encodeURIComponent(args.name)}`;
+            case "Epic Games":
+                return `https://store.epicgames.com/u/${encodeURIComponent(args.id)}`;
+            default:
+                return null;
+        }
     }
 });
 
